@@ -19,6 +19,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 #include "exec.h"
+#include <qemu_systemc.h>
 
 #define REGNAME r0
 #define REG (env->regs[0])
@@ -1916,6 +1917,65 @@ void OPPROTO op_movl_T0_sp(void)
         T0 = env->v7m.other_sp;
     FORCE_RET();
 }
+
+//§§mari
+void OPPROTO
+op_start_tb(void)
+{
+  extern void tb_start();
+  tb_start ();
+}
+
+#ifdef LOG_PC
+void OPPROTO
+op_log_pc(void)
+{
+  extern void log_pc(unsigned long addr);
+  log_pc (PARAM1);
+}
+#endif
+
+void OPPROTO
+op_verify_instruction_cache(void)
+{
+  extern void instruction_cache_access(unsigned long addr);
+  instruction_cache_access (PARAM1);
+}
+
+void OPPROTO
+op_verify_instruction_cache_n(void)
+{
+  extern void instruction_cache_access_n(unsigned long addr, int n);
+  instruction_cache_access_n (PARAM1, PARAM2);
+}
+
+void OPPROTO
+op_inc_crt_nr_cycles_instr(void)
+{
+  extern unsigned long s_crt_nr_cycles_instr;
+  s_crt_nr_cycles_instr += PARAM1;
+}
+
+#ifdef COUNT_INSTR_FOR_DEBUG
+void OPPROTO
+op_inc_crt_nr_instr(void)
+{
+  extern unsigned long long g_crt_nr_instr;
+  g_crt_nr_instr++;
+}
+#endif
+
+#ifdef WRITE_PC_FOR_DEBUG
+void OPPROTO
+op_write_pc(void)
+{
+  extern unsigned long last_pc_executed;
+  last_pc_executed = PARAM1;
+}
+#endif
+
+//end mari
+
 
 #include "op_neon.h"
 

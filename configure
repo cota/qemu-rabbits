@@ -17,7 +17,12 @@ TMPE="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}"
 TMPS="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}.S"
 
 # default parameters
-prefix=""
+#§§mari
+target_list="arm-softmmu"
+prefix="$PWD/release"
+
+#prefix=""
+#target_list=""
 interp_prefix="/usr/gnemul/qemu-%M"
 static="no"
 cross_prefix=""
@@ -30,7 +35,7 @@ make="make"
 install="install"
 strip="strip"
 cpu=`uname -m`
-target_list=""
+
 case "$cpu" in
   i386|i486|i586|i686|i86pc|BePC)
     cpu="i386"
@@ -962,10 +967,6 @@ fi
 
 echo "#define CONFIG_UNAME_RELEASE \"$uname_release\"" >> $config_h
 
-tools=
-if test `expr "$target_list" : ".*softmmu.*"` != 0 ; then
-  tools="qemu-img\$(EXESUF) $tools"
-fi
 echo "TOOLS=$tools" >> $config_mak
 
 test -f ${config_h}~ && cmp -s $config_h ${config_h}~ && mv ${config_h}~ $config_h

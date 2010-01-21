@@ -735,9 +735,7 @@ void cpu_dump_statistics (CPUState *env, FILE *f,
 void cpu_abort(CPUState *env, const char *fmt, ...)
     __attribute__ ((__format__ (__printf__, 2, 3)))
     __attribute__ ((__noreturn__));
-extern CPUState *first_cpu;
 extern CPUState *cpu_single_env;
-extern int code_copy_enabled;
 
 #define CPU_INTERRUPT_EXIT   0x01 /* wants exit from main loop */
 #define CPU_INTERRUPT_HARD   0x02 /* hardware interrupt pending */
@@ -781,8 +779,6 @@ typedef struct CPULogItem {
     const char *help;
 } CPULogItem;
 
-extern CPULogItem cpu_log_items[];
-
 void cpu_set_log(int log_flags);
 void cpu_set_log_filename(const char *filename);
 int cpu_str_to_log_mask(const char *str);
@@ -802,10 +798,7 @@ int cpu_inl(CPUState *env, int addr);
 
 /* memory API */
 
-extern int phys_ram_size;
-extern int phys_ram_fd;
 extern uint8_t *phys_ram_base;
-extern uint8_t *phys_ram_dirty;
 
 /* physical memory access */
 #define TLB_INVALID_MASK   (1 << 3)
@@ -830,8 +823,6 @@ void cpu_register_physical_memory(target_phys_addr_t start_addr,
                                   unsigned long size,
                                   unsigned long phys_offset);
 uint32_t cpu_get_physical_page_desc(target_phys_addr_t addr);
-ram_addr_t qemu_ram_alloc(unsigned int size);
-void qemu_ram_free(ram_addr_t addr);
 int cpu_register_io_memory(int io_index,
                            CPUReadMemoryFunc **mem_read,
                            CPUWriteMemoryFunc **mem_write,
@@ -873,18 +864,18 @@ int cpu_memory_rw_debug(CPUState *env, target_ulong addr,
 /* read dirty bit (return 0 or 1) */
 static inline int cpu_physical_memory_is_dirty(ram_addr_t addr)
 {
-    return phys_ram_dirty[addr >> TARGET_PAGE_BITS] == 0xff;
+    return crt_qemu_instance->phys_ram_dirty[addr >> TARGET_PAGE_BITS] == 0xff;
 }
 
 static inline int cpu_physical_memory_get_dirty(ram_addr_t addr,
                                                 int dirty_flags)
 {
-    return phys_ram_dirty[addr >> TARGET_PAGE_BITS] & dirty_flags;
+    return crt_qemu_instance->phys_ram_dirty[addr >> TARGET_PAGE_BITS] & dirty_flags;
 }
 
 static inline void cpu_physical_memory_set_dirty(ram_addr_t addr)
 {
-    phys_ram_dirty[addr >> TARGET_PAGE_BITS] = 0xff;
+    crt_qemu_instance->phys_ram_dirty[addr >> TARGET_PAGE_BITS] = 0xff;
 }
 
 void cpu_physical_memory_reset_dirty(ram_addr_t start, ram_addr_t end,

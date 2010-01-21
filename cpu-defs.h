@@ -28,6 +28,7 @@
 #include <setjmp.h>
 #include <inttypes.h>
 #include "osdep.h"
+#include "qemu_encap.h"
 
 #ifndef TARGET_LONG_BITS
 #error TARGET_LONG_BITS must be defined before including this header
@@ -85,6 +86,11 @@ typedef unsigned long ram_addr_t;
 #define EXCP_HLT        0x10001 /* hlt instruction reached */
 #define EXCP_DEBUG      0x10002 /* cpu stopped after a breakpoint or singlestep */
 #define EXCP_HALTED     0x10003 /* cpu is halted (waiting for external event) */
+#define EXCP_POWER_DOWN		0x10004
+#define EXCP_RESET			0x10005
+#define EXCP_SHUTDOWN		0x10006
+#define EXCP_VM_NOT_RUNNING	0x10007
+
 #define MAX_BREAKPOINTS 32
 #define MAX_WATCHPOINTS 32
 
@@ -148,6 +154,13 @@ typedef struct CPUTLBEntry {
     /* user data */                                                     \
     void *opaque;                                                       \
                                                                         \
-    const char *cpu_model_str;
+    const char *cpu_model_str;                                          \
+    struct                                                              \
+    {                                                                   \
+        unsigned long               sc_obj;                             \
+        unsigned long               fv_percent;                         \
+        unsigned long               ns_in_cpu_exec;                     \
+        qemu_instance               *qemu_instance;                     \
+    } qemu;                                                             
 
 #endif

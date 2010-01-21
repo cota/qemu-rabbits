@@ -17,6 +17,10 @@
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
+
+#include <qemu_systemc.h>
+#include <systemc_imports.h>
+
 #define DATA_SIZE (1 << SHIFT)
 
 #if DATA_SIZE == 8
@@ -47,6 +51,28 @@
 #define ADDR_READ addr_read
 #endif
 
+#ifndef _ALREADY_INCLUDED_EXTERN_CACHE_ACCESS_
+#define _ALREADY_INCLUDED_EXTERN_CACHE_ACCESS_
+
+extern unsigned long tmp_physaddr;
+extern unsigned char b_in_translation;
+extern uint8_t *phys_ram_base;
+extern unsigned long long g_no_write;
+extern unsigned long long g_no_uncached;
+extern void *data_cache_access (void);
+extern unsigned long long data_cache_accessq (void);
+extern unsigned long data_cache_accessl (void);
+extern unsigned short data_cache_accessw (void);
+extern unsigned char data_cache_accessb (void);
+
+extern void write_access (unsigned long addr, int nb, unsigned long val);
+#define write_accessq(addr,val) write_access(addr,8,val)
+#define write_accessl(addr,val) write_access(addr,4,val)
+#define write_accessw(addr,val) write_access(addr,2,val)
+#define write_accessb(addr,val) write_access(addr,1,val)
+
+#endif
+
 static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
                                                         int mmu_idx,
                                                         void *retaddr);
@@ -56,16 +82,18 @@ static inline DATA_TYPE glue(io_read, SUFFIX)(target_phys_addr_t physaddr,
     DATA_TYPE res;
     int index;
 
+		g_no_uncached++;
+
     index = (tlb_addr >> IO_MEM_SHIFT) & (IO_MEM_NB_ENTRIES - 1);
 #if SHIFT <= 2
-    res = io_mem_read[index][SHIFT](io_mem_opaque[index], physaddr);
+    res = macro_io_mem_read[index][SHIFT](macro_io_mem_opaque[index], physaddr);
 #else
 #ifdef TARGET_WORDS_BIGENDIAN
-    res = (uint64_t)io_mem_read[index][2](io_mem_opaque[index], physaddr) << 32;
-    res |= io_mem_read[index][2](io_mem_opaque[index], physaddr + 4);
+    res = (uint64_t) macro_io_mem_read[index][2](macro_io_mem_opaque[index], physaddr) << 32;
+    res |= macro_io_mem_read[index][2](macro_io_mem_opaque[index], physaddr + 4);
 #else
-    res = io_mem_read[index][2](io_mem_opaque[index], physaddr);
-    res |= (uint64_t)io_mem_read[index][2](io_mem_opaque[index], physaddr + 4) << 32;
+    res = macro_io_mem_read[index][2](macro_io_mem_opaque[index], physaddr);
+    res |= (uint64_t) macro_io_mem_read[index][2](macro_io_mem_opaque[index], physaddr + 4) << 32;
 #endif
 #endif /* SHIFT > 2 */
 #ifdef USE_KQEMU
@@ -113,7 +141,17 @@ DATA_TYPE REGPARM(1) glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
                 do_unaligned_access(addr, READ_ACCESS_TYPE, mmu_idx, retaddr);
             }
 #endif
-            res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(long)physaddr);
+
+						tmp_physaddr = physaddr - (unsigned long) phys_ram_base;
+						if (!b_in_translation)
+
+							{
+								res = glue (data_cache_access, SUFFIX) ();
+							}
+						else
+							{
+								res = *(DATA_TYPE *) systemc_get_mem_addr (tmp_physaddr);
+							}
         }
     } else {
         /* the page is not in the TLB : fill it */
@@ -166,7 +204,15 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             res = (DATA_TYPE)res;
         } else {
             /* unaligned/aligned access in the same page */
-            res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(long)physaddr);
+					tmp_physaddr = physaddr - (unsigned long) phys_ram_base;
+					if (!b_in_translation)
+						{
+							res = glue (data_cache_access, SUFFIX) ();
+						}
+					else
+						{
+							res = *(DATA_TYPE *) systemc_get_mem_addr (tmp_physaddr);
+						}
         }
     } else {
         /* the page is not in the TLB : fill it */
@@ -190,18 +236,20 @@ static inline void glue(io_write, SUFFIX)(target_phys_addr_t physaddr,
 {
     int index;
 
+		g_no_write++;
+
     index = (tlb_addr >> IO_MEM_SHIFT) & (IO_MEM_NB_ENTRIES - 1);
     env->mem_write_vaddr = tlb_addr;
     env->mem_write_pc = (unsigned long)retaddr;
 #if SHIFT <= 2
-    io_mem_write[index][SHIFT](io_mem_opaque[index], physaddr, val);
+    macro_io_mem_write[index][SHIFT](macro_io_mem_opaque[index], physaddr, val);
 #else
 #ifdef TARGET_WORDS_BIGENDIAN
-    io_mem_write[index][2](io_mem_opaque[index], physaddr, val >> 32);
-    io_mem_write[index][2](io_mem_opaque[index], physaddr + 4, val);
+    macro_io_mem_write[index][2](macro_io_mem_opaque[index], physaddr, val >> 32);
+    macro_io_mem_write[index][2](macro_io_mem_opaque[index], physaddr + 4, val);
 #else
-    io_mem_write[index][2](io_mem_opaque[index], physaddr, val);
-    io_mem_write[index][2](io_mem_opaque[index], physaddr + 4, val >> 32);
+    macro_io_mem_write[index][2](macro_io_mem_opaque[index], physaddr, val);
+    macro_io_mem_write[index][2](macro_io_mem_opaque[index], physaddr + 4, val >> 32);
 #endif
 #endif /* SHIFT > 2 */
 #ifdef USE_KQEMU
@@ -245,7 +293,12 @@ void REGPARM(2) glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
                 do_unaligned_access(addr, 1, mmu_idx, retaddr);
             }
 #endif
-            glue(glue(st, SUFFIX), _raw)((uint8_t *)(long)physaddr, val);
+
+						if (!b_in_translation)
+							{
+								glue (write_access, SUFFIX) (physaddr - (unsigned long) phys_ram_base,
+																						 (unsigned long) val);
+							}
         }
     } else {
         /* the page is not in the TLB : fill it */
@@ -295,7 +348,12 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             }
         } else {
             /* aligned/unaligned access in the same page */
-            glue(glue(st, SUFFIX), _raw)((uint8_t *)(long)physaddr, val);
+
+					if (!b_in_translation)
+						{
+							glue (write_access,	SUFFIX) (physaddr - (unsigned long) phys_ram_base,
+																					 (unsigned long) val);
+						}
         }
     } else {
         /* the page is not in the TLB : fill it */

@@ -17,9 +17,16 @@
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
+#include <stdlib.h>
 #include "config.h"
 #include "exec.h"
-#include "disas.h"
+#include <assert.h>
+#include <signal.h>
+#include <sys/types.h>
+#include <string.h>
+#include "qemu_encap.h"
+
+static int cpu_halted_systemc(void);
 
 #if !defined(CONFIG_SOFTMMU)
 #undef EAX
@@ -120,6 +127,8 @@ void cpu_resume_from_signal(CPUState *env1, void *puc)
     longjmp(env->jmp_env, 1);
 }
 
+unsigned char b_in_translation = 0;
+#define macro_tb_phys_hash ((TranslationBlock *(*)) crt_qemu_instance->tb_phys_hash)
 
 static TranslationBlock *tb_find_slow(target_ulong pc,
                                       target_ulong cs_base,
@@ -131,7 +140,9 @@ static TranslationBlock *tb_find_slow(target_ulong pc,
     target_ulong phys_pc, phys_page1, phys_page2, virt_page2;
     uint8_t *tc_ptr;
 
-    spin_lock(&tb_lock);
+		b_in_translation = 1;
+
+    /* spin_lock(&tb_lock); */
 
     tb_invalidated_flag = 0;
 
@@ -142,7 +153,7 @@ static TranslationBlock *tb_find_slow(target_ulong pc,
     phys_page1 = phys_pc & TARGET_PAGE_MASK;
     phys_page2 = -1;
     h = tb_phys_hash_func(phys_pc);
-    ptb1 = &tb_phys_hash[h];
+    ptb1 = &macro_tb_phys_hash[h];
     for(;;) {
         tb = *ptb1;
         if (!tb)
@@ -195,7 +206,10 @@ static TranslationBlock *tb_find_slow(target_ulong pc,
  found:
     /* we add the TB in the virtual pc hash table */
     env->tb_jmp_cache[tb_jmp_cache_hash_func(pc)] = tb;
-    spin_unlock(&tb_lock);
+    /* spin_unlock(&tb_lock); */
+
+		b_in_translation = 0;
+
     return tb;
 }
 
@@ -288,20 +302,18 @@ int cpu_exec(CPUState *env1)
 {
 #define DECLARE_HOST_REGS 1
 #include "hostregs_helper.h"
-#if defined(TARGET_SPARC)
-#if defined(reg_REGWPTR)
-    uint32_t *saved_regwptr;
-#endif
-#endif
+
     int ret, interrupt_request;
     void (*gen_func)(void);
     TranslationBlock *tb;
     uint8_t *tc_ptr;
 
-    if (cpu_halted(env1) == EXCP_HALTED)
-        return EXCP_HALTED;
+		env1->qemu.ns_in_cpu_exec = 0;
 
     cpu_single_env = env1;
+
+  if (cpu_halted_systemc () == EXCP_HALTED)
+    return EXCP_HALTED;
 
     /* first we save global registers */
 #define SAVE_HOST_REGS 1
@@ -310,30 +322,7 @@ int cpu_exec(CPUState *env1)
     SAVE_GLOBALS();
 
     env_to_regs();
-#if defined(TARGET_I386)
-    /* put eflags in CPU temporary format */
-    CC_SRC = env->eflags & (CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C);
-    DF = 1 - (2 * ((env->eflags >> 10) & 1));
-    CC_OP = CC_OP_EFLAGS;
-    env->eflags &= ~(DF_MASK | CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C);
-#elif defined(TARGET_SPARC)
-#if defined(reg_REGWPTR)
-    saved_regwptr = REGWPTR;
-#endif
-#elif defined(TARGET_M68K)
-    env->cc_op = CC_OP_FLAGS;
-    env->cc_dest = env->sr & 0xf;
-    env->cc_x = (env->sr >> 4) & 1;
-#elif defined(TARGET_ALPHA)
-#elif defined(TARGET_ARM)
-#elif defined(TARGET_PPC)
-#elif defined(TARGET_MIPS)
-#elif defined(TARGET_SH4)
-#elif defined(TARGET_CRIS)
-    /* XXXXX */
-#else
-#error unsupported target CPU
-#endif
+
     env->exception_index = -1;
 
     /* prepare setjmp context for exception handling */
@@ -350,178 +339,32 @@ int cpu_exec(CPUState *env1)
                     /* if user mode only, we simulate a fake exception
                        which will be handled outside the cpu execution
                        loop */
-#if defined(TARGET_I386)
-                    do_interrupt_user(env->exception_index,
-                                      env->exception_is_int,
-                                      env->error_code,
-                                      env->exception_next_eip);
-#endif
+
                     ret = env->exception_index;
                     break;
                 } else {
-#if defined(TARGET_I386)
-                    /* simulate a real cpu exception. On i386, it can
-                       trigger new exceptions, but we do not handle
-                       double or triple faults yet. */
-                    do_interrupt(env->exception_index,
-                                 env->exception_is_int,
-                                 env->error_code,
-                                 env->exception_next_eip, 0);
-                    /* successfully delivered */
-                    env->old_exception = -1;
-#elif defined(TARGET_PPC)
                     do_interrupt(env);
-#elif defined(TARGET_MIPS)
-                    do_interrupt(env);
-#elif defined(TARGET_SPARC)
-                    do_interrupt(env->exception_index);
-#elif defined(TARGET_ARM)
-                    do_interrupt(env);
-#elif defined(TARGET_SH4)
-		    do_interrupt(env);
-#elif defined(TARGET_ALPHA)
-                    do_interrupt(env);
-#elif defined(TARGET_CRIS)
-                    do_interrupt(env);
-#elif defined(TARGET_M68K)
-                    do_interrupt(0);
-#endif
                 }
                 env->exception_index = -1;
             }
-#ifdef USE_KQEMU
-            if (kqemu_is_ok(env) && env->interrupt_request == 0) {
-                int ret;
-                env->eflags = env->eflags | cc_table[CC_OP].compute_all() | (DF & DF_MASK);
-                ret = kqemu_cpu_exec(env);
-                /* put eflags in CPU temporary format */
-                CC_SRC = env->eflags & (CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C);
-                DF = 1 - (2 * ((env->eflags >> 10) & 1));
-                CC_OP = CC_OP_EFLAGS;
-                env->eflags &= ~(DF_MASK | CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C);
-                if (ret == 1) {
-                    /* exception */
-                    longjmp(env->jmp_env, 1);
-                } else if (ret == 2) {
-                    /* softmmu execution needed */
-                } else {
-                    if (env->interrupt_request != 0) {
-                        /* hardware interrupt will be executed just after */
-                    } else {
-                        /* otherwise, we restart */
-                        longjmp(env->jmp_env, 1);
-                    }
-                }
-            }
-#endif
 
             T0 = 0; /* force lookup of first TB */
             for(;;) {
                 SAVE_GLOBALS();
                 interrupt_request = env->interrupt_request;
-                if (__builtin_expect(interrupt_request, 0)
-#if defined(TARGET_I386)
-			&& env->hflags & HF_GIF_MASK
-#endif
-				) {
+                if (__builtin_expect(interrupt_request, 0)) {
                     if (interrupt_request & CPU_INTERRUPT_DEBUG) {
                         env->interrupt_request &= ~CPU_INTERRUPT_DEBUG;
                         env->exception_index = EXCP_DEBUG;
                         cpu_loop_exit();
                     }
-#if defined(TARGET_ARM) || defined(TARGET_SPARC) || defined(TARGET_MIPS) || \
-    defined(TARGET_PPC) || defined(TARGET_ALPHA) || defined(TARGET_CRIS)
+
                     if (interrupt_request & CPU_INTERRUPT_HALT) {
                         env->interrupt_request &= ~CPU_INTERRUPT_HALT;
                         env->halted = 1;
                         env->exception_index = EXCP_HLT;
                         cpu_loop_exit();
                     }
-#endif
-#if defined(TARGET_I386)
-                    if ((interrupt_request & CPU_INTERRUPT_SMI) &&
-                        !(env->hflags & HF_SMM_MASK)) {
-                        svm_check_intercept(SVM_EXIT_SMI);
-                        env->interrupt_request &= ~CPU_INTERRUPT_SMI;
-                        do_smm_enter();
-                        BREAK_CHAIN;
-                    } else if ((interrupt_request & CPU_INTERRUPT_HARD) &&
-                        (env->eflags & IF_MASK || env->hflags & HF_HIF_MASK) &&
-                        !(env->hflags & HF_INHIBIT_IRQ_MASK)) {
-                        int intno;
-                        svm_check_intercept(SVM_EXIT_INTR);
-                        env->interrupt_request &= ~(CPU_INTERRUPT_HARD | CPU_INTERRUPT_VIRQ);
-                        intno = cpu_get_pic_interrupt(env);
-                        if (loglevel & CPU_LOG_TB_IN_ASM) {
-                            fprintf(logfile, "Servicing hardware INT=0x%02x\n", intno);
-                        }
-                        do_interrupt(intno, 0, 0, 0, 1);
-                        /* ensure that no TB jump will be modified as
-                           the program flow was changed */
-                        BREAK_CHAIN;
-#if !defined(CONFIG_USER_ONLY)
-                    } else if ((interrupt_request & CPU_INTERRUPT_VIRQ) &&
-                        (env->eflags & IF_MASK) && !(env->hflags & HF_INHIBIT_IRQ_MASK)) {
-                         int intno;
-                         /* FIXME: this should respect TPR */
-                         env->interrupt_request &= ~CPU_INTERRUPT_VIRQ;
-                         svm_check_intercept(SVM_EXIT_VINTR);
-                         intno = ldl_phys(env->vm_vmcb + offsetof(struct vmcb, control.int_vector));
-                         if (loglevel & CPU_LOG_TB_IN_ASM)
-                             fprintf(logfile, "Servicing virtual hardware INT=0x%02x\n", intno);
-	                 do_interrupt(intno, 0, 0, -1, 1);
-                         stl_phys(env->vm_vmcb + offsetof(struct vmcb, control.int_ctl),
-                                  ldl_phys(env->vm_vmcb + offsetof(struct vmcb, control.int_ctl)) & ~V_IRQ_MASK);
-                        BREAK_CHAIN;
-#endif
-                    }
-#elif defined(TARGET_PPC)
-#if 0
-                    if ((interrupt_request & CPU_INTERRUPT_RESET)) {
-                        cpu_ppc_reset(env);
-                    }
-#endif
-                    if (interrupt_request & CPU_INTERRUPT_HARD) {
-                        ppc_hw_interrupt(env);
-                        if (env->pending_interrupts == 0)
-                            env->interrupt_request &= ~CPU_INTERRUPT_HARD;
-                        BREAK_CHAIN;
-                    }
-#elif defined(TARGET_MIPS)
-                    if ((interrupt_request & CPU_INTERRUPT_HARD) &&
-                        (env->CP0_Status & env->CP0_Cause & CP0Ca_IP_mask) &&
-                        (env->CP0_Status & (1 << CP0St_IE)) &&
-                        !(env->CP0_Status & (1 << CP0St_EXL)) &&
-                        !(env->CP0_Status & (1 << CP0St_ERL)) &&
-                        !(env->hflags & MIPS_HFLAG_DM)) {
-                        /* Raise it */
-                        env->exception_index = EXCP_EXT_INTERRUPT;
-                        env->error_code = 0;
-                        do_interrupt(env);
-                        BREAK_CHAIN;
-                    }
-#elif defined(TARGET_SPARC)
-                    if ((interrupt_request & CPU_INTERRUPT_HARD) &&
-			(env->psret != 0)) {
-			int pil = env->interrupt_index & 15;
-			int type = env->interrupt_index & 0xf0;
-
-			if (((type == TT_EXTINT) &&
-			     (pil == 15 || pil > env->psrpil)) ||
-			    type != TT_EXTINT) {
-			    env->interrupt_request &= ~CPU_INTERRUPT_HARD;
-			    do_interrupt(env->interrupt_index);
-			    env->interrupt_index = 0;
-#if !defined(TARGET_SPARC64) && !defined(CONFIG_USER_ONLY)
-                            cpu_check_irqs(env);
-#endif
-                        BREAK_CHAIN;
-			}
-		    } else if (interrupt_request & CPU_INTERRUPT_TIMER) {
-			//do_interrupt(0, 0, 0, 0, 0);
-			env->interrupt_request &= ~CPU_INTERRUPT_TIMER;
-		    }
-#elif defined(TARGET_ARM)
                     if (interrupt_request & CPU_INTERRUPT_FIQ
                         && !(env->uncached_cpsr & CPSR_F)) {
                         env->exception_index = EXCP_FIQ;
@@ -544,36 +387,6 @@ int cpu_exec(CPUState *env1)
                         do_interrupt(env);
                         BREAK_CHAIN;
                     }
-#elif defined(TARGET_SH4)
-                    if (interrupt_request & CPU_INTERRUPT_HARD) {
-                        do_interrupt(env);
-                        BREAK_CHAIN;
-                    }
-#elif defined(TARGET_ALPHA)
-                    if (interrupt_request & CPU_INTERRUPT_HARD) {
-                        do_interrupt(env);
-                        BREAK_CHAIN;
-                    }
-#elif defined(TARGET_CRIS)
-                    if (interrupt_request & CPU_INTERRUPT_HARD) {
-                        do_interrupt(env);
-			env->interrupt_request &= ~CPU_INTERRUPT_HARD;
-                        BREAK_CHAIN;
-                    }
-#elif defined(TARGET_M68K)
-                    if (interrupt_request & CPU_INTERRUPT_HARD
-                        && ((env->sr & SR_I) >> SR_I_SHIFT)
-                            < env->pending_level) {
-                        /* Real hardware gets the interrupt vector via an
-                           IACK cycle at this point.  Current emulated
-                           hardware doesn't rely on this, so we
-                           provide/save the vector when the interrupt is
-                           first signalled.  */
-                        env->exception_index = env->pending_vector;
-                        do_interrupt(1);
-                        BREAK_CHAIN;
-                    }
-#endif
                    /* Don't use the cached interupt_request value,
                       do_interrupt may have updated the EXITTB flag. */
                     if (env->interrupt_request & CPU_INTERRUPT_EXITTB) {
@@ -588,113 +401,24 @@ int cpu_exec(CPUState *env1)
                         cpu_loop_exit();
                     }
                 }
-#ifdef DEBUG_EXEC
-                if ((loglevel & CPU_LOG_TB_CPU)) {
-                    /* restore flags in standard format */
-                    regs_to_env();
-#if defined(TARGET_I386)
-                    env->eflags = env->eflags | cc_table[CC_OP].compute_all() | (DF & DF_MASK);
-                    cpu_dump_state(env, logfile, fprintf, X86_DUMP_CCOP);
-                    env->eflags &= ~(DF_MASK | CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C);
-#elif defined(TARGET_ARM)
-                    cpu_dump_state(env, logfile, fprintf, 0);
-#elif defined(TARGET_SPARC)
-		    REGWPTR = env->regbase + (env->cwp * 16);
-		    env->regwptr = REGWPTR;
-                    cpu_dump_state(env, logfile, fprintf, 0);
-#elif defined(TARGET_PPC)
-                    cpu_dump_state(env, logfile, fprintf, 0);
-#elif defined(TARGET_M68K)
-                    cpu_m68k_flush_flags(env, env->cc_op);
-                    env->cc_op = CC_OP_FLAGS;
-                    env->sr = (env->sr & 0xffe0)
-                              | env->cc_dest | (env->cc_x << 4);
-                    cpu_dump_state(env, logfile, fprintf, 0);
-#elif defined(TARGET_MIPS)
-                    cpu_dump_state(env, logfile, fprintf, 0);
-#elif defined(TARGET_SH4)
-		    cpu_dump_state(env, logfile, fprintf, 0);
-#elif defined(TARGET_ALPHA)
-                    cpu_dump_state(env, logfile, fprintf, 0);
-#elif defined(TARGET_CRIS)
-                    cpu_dump_state(env, logfile, fprintf, 0);
-#else
-#error unsupported target CPU
-#endif
-                }
-#endif
                 tb = tb_find_fast();
-#ifdef DEBUG_EXEC
-                if ((loglevel & CPU_LOG_EXEC)) {
-                    fprintf(logfile, "Trace 0x%08lx [" TARGET_FMT_lx "] %s\n",
-                            (long)tb->tc_ptr, tb->pc,
-                            lookup_symbol(tb->pc));
-                }
-#endif
                 RESTORE_GLOBALS();
                 /* see if we can patch the calling TB. When the TB
                    spans two pages, we cannot safely do a direct
                    jump. */
                 {
-                    if (T0 != 0 &&
-#if USE_KQEMU
-                        (env->kqemu_enabled != 2) &&
-#endif
-                        tb->page_addr[1] == -1) {
-                    spin_lock(&tb_lock);
+                    if (T0 != 0 && tb->page_addr[1] == -1) {
+                    /* spin_lock(&tb_lock); */
                     tb_add_jump((TranslationBlock *)(long)(T0 & ~3), T0 & 3, tb);
-                    spin_unlock(&tb_lock);
+                    /* spin_unlock(&tb_lock); */
                 }
                 }
                 tc_ptr = tb->tc_ptr;
                 env->current_tb = tb;
                 /* execute the generated code */
                 gen_func = (void *)tc_ptr;
-#if defined(__sparc__)
-                __asm__ __volatile__("call	%0\n\t"
-                                     "mov	%%o7,%%i0"
-                                     : /* no outputs */
-                                     : "r" (gen_func)
-                                     : "i0", "i1", "i2", "i3", "i4", "i5",
-                                       "o0", "o1", "o2", "o3", "o4", "o5",
-                                       "l0", "l1", "l2", "l3", "l4", "l5",
-                                       "l6", "l7");
-#elif defined(__arm__)
-                asm volatile ("mov pc, %0\n\t"
-                              ".global exec_loop\n\t"
-                              "exec_loop:\n\t"
-                              : /* no outputs */
-                              : "r" (gen_func)
-                              : "r1", "r2", "r3", "r8", "r9", "r10", "r12", "r14");
-#elif defined(__ia64)
-		struct fptr {
-			void *ip;
-			void *gp;
-		} fp;
-
-		fp.ip = tc_ptr;
-		fp.gp = code_gen_buffer + 2 * (1 << 20);
-		(*(void (*)(void)) &fp)();
-#else
                 gen_func();
-#endif
                 env->current_tb = NULL;
-                /* reset soft MMU for next block (it can currently
-                   only be set by a memory fault) */
-#if defined(TARGET_I386) && !defined(CONFIG_SOFTMMU)
-                if (env->hflags & HF_SOFTMMU_MASK) {
-                    env->hflags &= ~HF_SOFTMMU_MASK;
-                    /* do not allow linking to another block */
-                    T0 = 0;
-                }
-#endif
-#if defined(USE_KQEMU)
-#define MIN_CYCLE_BEFORE_SWITCH (100 * 1000)
-                if (kqemu_is_ok(env) &&
-                    (cpu_get_time_fast() - env->last_io_time) >= MIN_CYCLE_BEFORE_SWITCH) {
-                    cpu_loop_exit();
-                }
-#endif
             } /* for(;;) */
         } else {
             env_to_regs();
@@ -702,33 +426,11 @@ int cpu_exec(CPUState *env1)
     } /* for(;;) */
 
 
-#if defined(TARGET_I386)
-    /* restore flags in standard format */
-    env->eflags = env->eflags | cc_table[CC_OP].compute_all() | (DF & DF_MASK);
-#elif defined(TARGET_ARM)
-    /* XXX: Save/restore host fpu exception state?.  */
-#elif defined(TARGET_SPARC)
-#if defined(reg_REGWPTR)
-    REGWPTR = saved_regwptr;
-#endif
-#elif defined(TARGET_PPC)
-#elif defined(TARGET_M68K)
-    cpu_m68k_flush_flags(env, env->cc_op);
-    env->cc_op = CC_OP_FLAGS;
-    env->sr = (env->sr & 0xffe0)
-              | env->cc_dest | (env->cc_x << 4);
-#elif defined(TARGET_MIPS)
-#elif defined(TARGET_SH4)
-#elif defined(TARGET_ALPHA)
-#elif defined(TARGET_CRIS)
-    /* XXXXX */
-#else
-#error unsupported target CPU
-#endif
 
     /* restore global registers */
     RESTORE_GLOBALS();
 #include "hostregs_helper.h"
+#include "cpu.h"
 
     /* fail safe : never use cpu_single_env outside cpu_exec() */
     cpu_single_env = NULL;
@@ -1497,3 +1199,440 @@ int cpu_signal_handler(int host_signum, void *pinfo,
 #endif
 
 #endif /* !defined(CONFIG_SOFTMMU) */
+
+
+//§§mari qemu_systemc
+#include <assert.h>
+#include <qemu_systemc.h>
+#include <systemc_imports.h>
+#include <../../components/qemu_wrapper/qemu_wrapper_cts.h>
+
+//#define _DEBUG_READWRITE_HW_QEMU_SYSTEMC_
+
+#ifdef _DEBUG_READWRITE_HW_QEMU_SYSTEMC_
+#define DPRINTF printf
+#else
+#define DPRINTF if (0) printf
+#endif
+
+#define SAVE_ENV_BEFORE_CONSUME_SYSTEMC() do{\
+	  qemu_instance   *_save_crt_qemu_instance = crt_qemu_instance; \
+		CPUState			*_save_cpu_single_env = cpu_single_env; \
+		CPUState			*_save_env = env; \
+		int					_save_tb_invalidated_flag = tb_invalidated_flag; \
+		crt_qemu_instance = NULL;																		 \
+		env = NULL; \
+		cpu_single_env = NULL; \
+    tb_invalidated_flag = 0
+
+#define RESTORE_ENV_AFTER_CONSUME_SYSTEMC() \
+	  crt_qemu_instance = _save_crt_qemu_instance;	\
+		cpu_single_env = _save_cpu_single_env; \
+		env = _save_env; \
+		tb_invalidated_flag = _save_tb_invalidated_flag; \
+		}while (0)
+
+unsigned long s_crt_nr_cycles_instr = 0;
+unsigned long long g_crt_nr_instr = 0;
+unsigned long long g_no_dcache_miss = 0;
+unsigned long long g_no_icache_miss = 0;
+unsigned long long g_no_write = 0;
+unsigned long long g_no_uncached = 0;
+
+void
+qemu_get_counters (unsigned long long *no_instr,
+		   unsigned long long *no_dcache_miss,
+		   unsigned long long *no_write,
+		   unsigned long long *no_icache_miss,
+		   unsigned long long *no_uncached)
+{
+  *no_instr = g_crt_nr_instr;
+  *no_dcache_miss = g_no_dcache_miss;
+  *no_write = g_no_write;
+  *no_icache_miss = g_no_icache_miss;
+  *no_uncached = g_no_uncached;
+}
+
+static uint32_t
+qemu_systemc_read_all (void *opaque,
+		       target_phys_addr_t offset, unsigned char nbytes)
+{
+  uint32_t value = 0xFFFFFFFF;
+
+  SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
+
+  int ninstr = s_crt_nr_cycles_instr;
+  if (ninstr)
+    {
+      s_crt_nr_cycles_instr = 0;
+      systemc_qemu_consume_instruction_cycles (_save_cpu_single_env->qemu.
+																							 sc_obj, ninstr,
+																							 &_save_cpu_single_env->qemu.
+																							 ns_in_cpu_exec);
+    }
+
+  value =
+    systemc_qemu_read_memory (_save_cpu_single_env->qemu.sc_obj, offset,
+			      nbytes,
+			      &_save_cpu_single_env->qemu.ns_in_cpu_exec);
+
+  RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
+
+  return value;
+}
+
+static void
+qemu_systemc_write_all (void *opaque, target_phys_addr_t offset,
+			uint32_t value, unsigned char nbytes)
+{
+  SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
+
+  int ninstr = s_crt_nr_cycles_instr;
+  if (ninstr)
+    {
+      s_crt_nr_cycles_instr = 0;
+      systemc_qemu_consume_instruction_cycles (_save_cpu_single_env->qemu.
+																							 sc_obj, ninstr,
+																							 &_save_cpu_single_env->qemu.
+																							 ns_in_cpu_exec);
+    }
+
+  systemc_qemu_write_memory (_save_cpu_single_env->qemu.sc_obj, offset, value,
+			     nbytes,
+			     &_save_cpu_single_env->qemu.ns_in_cpu_exec);
+
+  RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
+}
+
+static uint32_t
+qemu_systemc_read_b (void *opaque, target_phys_addr_t offset)
+{
+  DPRINTF ("read byte from 0x%X\n", offset);
+
+  return qemu_systemc_read_all (opaque, offset, 1);
+}
+
+static void
+qemu_systemc_write_b (void *opaque, target_phys_addr_t offset, uint32_t value)
+{
+  DPRINTF ("write byte 0x%X to 0x%X\n", value, offset);
+
+  qemu_systemc_write_all (opaque, offset, value, 1);
+}
+
+static uint32_t
+qemu_systemc_read_w (void *opaque, target_phys_addr_t offset)
+{
+  DPRINTF ("read short from 0x%X\n", offset);
+
+  return qemu_systemc_read_all (opaque, offset, 2);
+}
+
+static void
+qemu_systemc_write_w (void *opaque, target_phys_addr_t offset, uint32_t value)
+{
+  DPRINTF ("write short 0x%X to 0x%X\n", value, offset);
+
+  qemu_systemc_write_all (opaque, offset, value, 2);
+}
+
+static uint32_t
+qemu_systemc_read_dw (void *opaque, target_phys_addr_t offset)
+{
+  DPRINTF ("read long from 0x%X, CPU = %d\n", offset,
+	   cpu_single_env->cpu_index);
+
+  return qemu_systemc_read_all (opaque, offset, 4);
+}
+
+static void
+qemu_systemc_write_dw (void *opaque, target_phys_addr_t offset,
+		       uint32_t value)
+{
+  DPRINTF ("write long 0x%X to 0x%X\n", value, offset);
+
+  qemu_systemc_write_all (opaque, offset, value, 4);
+}
+
+static CPUReadMemoryFunc *qemu_systemc_readfn[] = {
+  qemu_systemc_read_b,
+  qemu_systemc_read_w,
+  qemu_systemc_read_dw,
+};
+
+static CPUWriteMemoryFunc *qemu_systemc_writefn[] = {
+  qemu_systemc_write_b,
+  qemu_systemc_write_w,
+  qemu_systemc_write_dw,
+};
+
+void
+qemu_add_map (unsigned long base, unsigned long size, int type)
+{
+  int iomemtype;
+
+  iomemtype =
+    cpu_register_io_memory (0, qemu_systemc_readfn, qemu_systemc_writefn, 0);
+  cpu_register_physical_memory (base, size, iomemtype);
+}
+
+void
+qemu_set_cpu_fv_percent (CPUState * penv, unsigned long fv_percent)
+{
+  penv->qemu.fv_percent = (fv_percent > 0) ? fv_percent : 100;
+}
+
+void
+tb_start ()
+{
+  if (cpu_single_env->qemu.ns_in_cpu_exec +
+      (s_crt_nr_cycles_instr * 100) / cpu_single_env->qemu.fv_percent > 40000)
+    {
+//              printf ("tb_start - > 40000, sctime = %llu\n", systemc_qemu_get_time ());
+      cpu_interrupt (cpu_single_env, CPU_INTERRUPT_EXIT);
+    }
+}
+
+static int
+cpu_halted_systemc ()
+{
+	CPUState *penv = (CPUState *) crt_qemu_instance->first_cpu;
+  int ret = 0;
+
+  while (penv)
+    {
+      if (penv->halted)
+	{
+	  if (penv->interrupt_request &
+	      (CPU_INTERRUPT_FIQ | CPU_INTERRUPT_HARD | CPU_INTERRUPT_EXITTB))
+	    {
+	      penv->halted = 0;
+
+	      if (penv != cpu_single_env)
+		{
+		  SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
+
+		  int ninstr = s_crt_nr_cycles_instr;
+		  if (ninstr)
+		    {
+		      s_crt_nr_cycles_instr = 0;
+		      systemc_qemu_consume_instruction_cycles
+						(_save_cpu_single_env->qemu.sc_obj, ninstr,
+						 &_save_cpu_single_env->qemu.ns_in_cpu_exec);
+		    }
+
+		  systemc_qemu_wakeup (penv->qemu.sc_obj);
+
+		  RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
+		}
+	    }
+	  else
+	    {
+	      if (penv == cpu_single_env)
+		ret = EXCP_HALTED;
+	    }
+	}
+
+      penv = penv->next_cpu;
+    }
+
+  return ret;
+}
+
+int64_t
+qemu_get_clock_with_systemc ()
+{
+	if (cpu_single_env == NULL)
+    return 0;
+
+  int ninstr = s_crt_nr_cycles_instr;
+  if (ninstr > 0)
+    {
+      SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
+
+      s_crt_nr_cycles_instr = 0;
+      systemc_qemu_consume_instruction_cycles (_save_next_cpu_vl->qemu.sc_obj,
+																							 ninstr,
+																							 &_save_next_cpu_vl->qemu.
+																							 ns_in_cpu_exec);
+
+      RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
+    }
+
+  return systemc_qemu_get_time ();
+}
+
+extern unsigned long tmp_physaddr;
+#ifdef LOG_PC
+void log_data_cache (unsigned long addr_miss);
+#endif
+
+inline void *
+data_cache_access ()
+{
+
+  int cpu = env->cpu_index;
+  unsigned long addr = tmp_physaddr;
+  unsigned long tag = addr >> DCACHE_LINE_BITS;
+  int idx = tag & (DCACHE_LINES - 1);
+
+	if (tag != crt_qemu_instance->cpu_dcache[cpu][idx])
+    {
+      g_no_dcache_miss++;
+			crt_qemu_instance->cpu_dcache[cpu][idx] = tag;
+
+#ifdef LOG_PC
+      log_data_cache (addr);
+#endif
+
+      int ninstr = s_crt_nr_cycles_instr;
+      SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
+      if (ninstr > 0)
+	{
+	  s_crt_nr_cycles_instr = 0;
+		systemc_qemu_consume_instruction_cycles (_save_cpu_single_env->qemu.
+               sc_obj, ninstr,
+               &_save_cpu_single_env->qemu.
+							 ns_in_cpu_exec);
+
+	}
+
+      unsigned long addr_in_mem_dev;
+      addr_in_mem_dev =
+				systemc_qemu_read_memory (_save_cpu_single_env->qemu.sc_obj,
+																	addr & ~DCACHE_LINE_MASK, 4,
+																	&_save_cpu_single_env->qemu.ns_in_cpu_exec);
+			memcpy (_save_crt_qemu_instance->cpu_dcache_data[cpu][idx], (void *) addr_in_mem_dev,
+							DCACHE_LINE_BYTES);
+
+      RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
+    }
+
+	return &crt_qemu_instance->cpu_dcache_data[cpu][idx][addr & DCACHE_LINE_MASK];
+}
+
+unsigned long long
+data_cache_accessq ()
+{
+  printf
+    ("8 byte access not implemented for data caches, file %s, function %s\n",
+     __FILE__, __FUNCTION__);
+  exit (1);
+}
+
+unsigned long
+data_cache_accessl ()
+{
+  return *(unsigned long *) data_cache_access ();
+}
+
+unsigned short
+data_cache_accessw ()
+{
+  return *(unsigned short *) data_cache_access ();
+}
+
+unsigned char
+data_cache_accessb ()
+{
+  return *(unsigned char *) data_cache_access ();
+}
+
+void
+write_access (unsigned long addr, int nb, unsigned long val)
+{
+
+  g_no_write++;
+
+  int cpu = env->cpu_index;
+  unsigned long tag = addr >> DCACHE_LINE_BITS;
+  unsigned long ofs = addr & DCACHE_LINE_MASK;
+  int idx = tag & (DCACHE_LINES - 1);
+
+  int ninstr = s_crt_nr_cycles_instr;
+  SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
+  if (ninstr > 0)
+    {
+      s_crt_nr_cycles_instr = 0;
+			systemc_qemu_consume_instruction_cycles (_save_cpu_single_env->qemu.sc_obj,
+								 ninstr,
+                 &_save_cpu_single_env->qemu.
+								 ns_in_cpu_exec);
+    }
+	
+	if (tag == _save_crt_qemu_instance->cpu_dcache[cpu][idx]) // addr in cache -> update
+    {
+      switch (nb)
+				{
+				case 1:
+					*((unsigned char *)  &_save_crt_qemu_instance->cpu_dcache_data[cpu][idx][ofs]) =
+						(unsigned char) (val & 0x000000FF);
+					break;
+				case 2:
+					*((unsigned short *) &_save_crt_qemu_instance->cpu_dcache_data[cpu][idx][ofs]) =
+						(unsigned short) (val & 0x0000FFFF);
+					break;
+				case 4:
+					*((unsigned long *)  &_save_crt_qemu_instance->cpu_dcache_data[cpu][idx][ofs]) =
+						(unsigned long) (val & 0xFFFFFFFF);
+					break;
+				default:
+					printf ("QEMU, function %s, invalid nb %d\n", __FUNCTION__, nb);
+					exit (1);
+				}
+		}
+
+	systemc_qemu_write_memory (_save_cpu_single_env->qemu.sc_obj,
+														 addr, val, nb,
+														 &_save_cpu_single_env->qemu.ns_in_cpu_exec);
+
+  int i;
+	for (i = 0; i < _save_crt_qemu_instance->NOCPUs; i++)
+		if (i != cpu && _save_crt_qemu_instance->cpu_dcache[i][idx] == tag)
+			_save_crt_qemu_instance->cpu_dcache[i][idx] = (unsigned long) -1;
+	
+  RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
+}
+
+void
+instruction_cache_access (unsigned long addr)
+{
+
+  int cpu = env->cpu_index;
+  unsigned long tag = addr >> ICACHE_LINE_BITS;
+  int idx = tag & (ICACHE_LINES - 1);
+
+	if (tag != crt_qemu_instance->cpu_icache[cpu][idx])
+    {
+      g_no_icache_miss++;
+			crt_qemu_instance->cpu_icache[cpu][idx] = tag;
+
+
+      int ninstr = s_crt_nr_cycles_instr;
+      SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
+      if (ninstr > 0)
+	{
+	  s_crt_nr_cycles_instr = 0;
+		systemc_qemu_consume_instruction_cycles (_save_cpu_single_env->qemu.
+							 sc_obj, ninstr,
+               &_save_cpu_single_env->qemu.
+							 ns_in_cpu_exec);
+	}
+
+      unsigned long junk;
+			junk = systemc_qemu_read_memory (_save_cpu_single_env->qemu.sc_obj,
+																			 addr & ~ICACHE_LINE_MASK, 4,
+																			 &_save_cpu_single_env->qemu.
+																			 ns_in_cpu_exec);
+
+      RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
+    }
+}
+
+void
+instruction_cache_access_n (unsigned long addr, int n)
+{
+  int i;
+  for (i = 0; i < n; i++)
+    instruction_cache_access (addr + i * 4);
+}

@@ -17,6 +17,13 @@
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
+
+#include <qemu_systemc.h>
+#include <systemc_imports.h>
+void printf_fulul (unsigned long, unsigned long, unsigned long,
+									 unsigned long);
+
+
 #if DATA_SIZE == 8
 #define SUFFIX q
 #define USUFFIX q
@@ -221,6 +228,29 @@ static inline void glue(glue(st, SUFFIX), MEMSUFFIX)(target_ulong ptr, RES_TYPE 
 
 #else
 
+#ifndef _ALREADY_INCLUDED_EXTERN_CACHE_ACCESS_
+#define _ALREADY_INCLUDED_EXTERN_CACHE_ACCESS_
+
+     extern unsigned long tmp_physaddr;
+     extern unsigned char b_in_translation;
+     extern uint8_t *phys_ram_base;
+     extern unsigned long long g_no_write;
+     extern unsigned long long g_no_uncached;
+
+     extern void *data_cache_access (void);
+     extern unsigned long long data_cache_accessq (void);
+     extern unsigned long data_cache_accessl (void);
+     extern unsigned short data_cache_accessw (void);
+     extern unsigned char data_cache_accessb (void);
+
+     extern void write_access (unsigned long addr, int nb, unsigned long val);
+#define write_accessq(addr,val) write_access(addr,8,val)
+#define write_accessl(addr,val) write_access(addr,4,val)
+#define write_accessw(addr,val) write_access(addr,2,val)
+#define write_accessb(addr,val) write_access(addr,1,val)
+
+#endif
+
 /* generic load/store macros */
 
 static inline RES_TYPE glue(glue(ld, USUFFIX), MEMSUFFIX)(target_ulong ptr)
@@ -239,7 +269,16 @@ static inline RES_TYPE glue(glue(ld, USUFFIX), MEMSUFFIX)(target_ulong ptr)
         res = glue(glue(__ld, SUFFIX), MMUSUFFIX)(addr, mmu_idx);
     } else {
         physaddr = addr + env->tlb_table[mmu_idx][index].addend;
-        res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)physaddr);
+
+				tmp_physaddr = physaddr - (unsigned long) phys_ram_base;
+				if (!b_in_translation)
+					{
+						res = glue (data_cache_access, SUFFIX) ();
+					}
+				else
+					{
+						res = *(RES_TYPE *) systemc_get_mem_addr (tmp_physaddr);
+					}
     }
     return res;
 }
@@ -260,7 +299,16 @@ static inline int glue(glue(lds, SUFFIX), MEMSUFFIX)(target_ulong ptr)
         res = (DATA_STYPE)glue(glue(__ld, SUFFIX), MMUSUFFIX)(addr, mmu_idx);
     } else {
         physaddr = addr + env->tlb_table[mmu_idx][index].addend;
-        res = glue(glue(lds, SUFFIX), _raw)((uint8_t *)physaddr);
+
+				tmp_physaddr = physaddr - (unsigned long) phys_ram_base;
+				if (!b_in_translation)
+					{
+						res = glue (data_cache_access, SUFFIX) ();
+					}
+				else
+					{
+						res = *(DATA_STYPE *) systemc_get_mem_addr (tmp_physaddr);
+					}
     }
     return res;
 }
@@ -285,7 +333,12 @@ static inline void glue(glue(st, SUFFIX), MEMSUFFIX)(target_ulong ptr, RES_TYPE 
         glue(glue(__st, SUFFIX), MMUSUFFIX)(addr, v, mmu_idx);
     } else {
         physaddr = addr + env->tlb_table[mmu_idx][index].addend;
-        glue(glue(st, SUFFIX), _raw)((uint8_t *)physaddr, v);
+
+      if (!b_in_translation)
+				{
+					glue (write_access,	SUFFIX) (physaddr - (unsigned long) phys_ram_base,
+																			 (unsigned long) v);
+				}
     }
 }
 

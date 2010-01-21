@@ -19,6 +19,7 @@
  */
 
 /* allow to see translation results - the slowdown should be negligible, so we leave it */
+#include "qemu_encap.h"
 #define DEBUG_DISAS
 
 /* is_jmp field values */
@@ -204,8 +205,6 @@ void tb_flush(CPUState *env);
 void tb_link_phys(TranslationBlock *tb,
                   target_ulong phys_pc, target_ulong phys_page2);
 
-extern TranslationBlock *tb_phys_hash[CODE_GEN_PHYS_HASH_SIZE];
-
 extern uint8_t code_gen_buffer[CODE_GEN_BUFFER_SIZE];
 extern uint8_t *code_gen_ptr;
 
@@ -336,9 +335,9 @@ dummy_label ## n: ;\
 
 #endif
 
-extern CPUWriteMemoryFunc *io_mem_write[IO_MEM_NB_ENTRIES][4];
-extern CPUReadMemoryFunc *io_mem_read[IO_MEM_NB_ENTRIES][4];
-extern void *io_mem_opaque[IO_MEM_NB_ENTRIES];
+#define macro_io_mem_opaque ((void *(*)) crt_qemu_instance->io_mem_opaque)
+#define macro_io_mem_read ((CPUReadMemoryFunc *(*)[4]) crt_qemu_instance->io_mem_read)
+#define macro_io_mem_write ((CPUWriteMemoryFunc *(*)[4]) crt_qemu_instance->io_mem_write)
 
 #if defined(__powerpc__)
 static inline int testandset (int *p)
@@ -505,7 +504,7 @@ static inline int spin_trylock(spinlock_t *lock)
 }
 #endif
 
-extern spinlock_t tb_lock;
+/* extern spinlock_t tb_lock; */
 
 extern int tb_invalidated_flag;
 

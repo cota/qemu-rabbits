@@ -199,11 +199,7 @@ typedef struct CPUARMState {
 
     /* These fields after the common ones so they are preserved on reset.  */
     int ram_size;
-    const char *kernel_filename;
-    const char *kernel_cmdline;
-    const char *initrd_filename;
-    int board_id;
-    target_phys_addr_t loader_start;
+
 } CPUARMState;
 
 CPUARMState *cpu_arm_init(const char *cpu_model);
@@ -211,7 +207,6 @@ int cpu_arm_exec(CPUARMState *s);
 void cpu_arm_close(CPUARMState *s);
 void do_interrupt(CPUARMState *);
 void switch_mode(CPUARMState *, int);
-uint32_t do_arm_semihosting(CPUARMState *env);
 
 /* you can call this signal handler from your SIGBUS and SIGSEGV
    signal handlers to inform the virtual CPU of exceptions. non zero

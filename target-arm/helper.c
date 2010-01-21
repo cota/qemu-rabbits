@@ -4,7 +4,6 @@
 
 #include "cpu.h"
 #include "exec-all.h"
-#include "gdbstub.h"
 
 static uint32_t cortexa8_cp15_c0_c1[8] =
 { 0x1031, 0x11, 0x400, 0, 0x31100003, 0x20000000, 0x01202000, 0x11 };
@@ -61,7 +60,7 @@ static void cpu_reset_model_id(CPUARMState *env, uint32_t id)
         env->vfp.xregs[ARM_VFP_MVFR0] = 0x11111111;
         env->vfp.xregs[ARM_VFP_MVFR1] = 0x00000000;
         memcpy(env->cp15.c0_c1, arm1136_cp15_c0_c1, 8 * sizeof(uint32_t));
-        memcpy(env->cp15.c0_c1, arm1136_cp15_c0_c2, 8 * sizeof(uint32_t));
+        memcpy(env->cp15.c0_c2, arm1136_cp15_c0_c2, 8 * sizeof(uint32_t));
         env->cp15.c0_cachetype = 0x1dd20d2;
         break;
     case ARM_CPUID_ARM11MPCORE:
@@ -73,8 +72,8 @@ static void cpu_reset_model_id(CPUARMState *env, uint32_t id)
         env->vfp.xregs[ARM_VFP_MVFR0] = 0x11111111;
         env->vfp.xregs[ARM_VFP_MVFR1] = 0x00000000;
         memcpy(env->cp15.c0_c1, mpcore_cp15_c0_c1, 8 * sizeof(uint32_t));
-        memcpy(env->cp15.c0_c1, mpcore_cp15_c0_c2, 8 * sizeof(uint32_t));
-        env->cp15.c0_cachetype = 0x1dd20d2;
+        memcpy(env->cp15.c0_c2, mpcore_cp15_c0_c2, 8 * sizeof(uint32_t));
+        env->cp15.c0_cachetype = 0x1ddd2dd2;
         break;
     case ARM_CPUID_CORTEXA8:
         set_feature(env, ARM_FEATURE_V6);
@@ -89,7 +88,7 @@ static void cpu_reset_model_id(CPUARMState *env, uint32_t id)
         env->vfp.xregs[ARM_VFP_MVFR0] = 0x11110222;
         env->vfp.xregs[ARM_VFP_MVFR1] = 0x00011100;
         memcpy(env->cp15.c0_c1, cortexa8_cp15_c0_c1, 8 * sizeof(uint32_t));
-        memcpy(env->cp15.c0_c1, cortexa8_cp15_c0_c2, 8 * sizeof(uint32_t));
+        memcpy(env->cp15.c0_c2, cortexa8_cp15_c0_c2, 8 * sizeof(uint32_t));
         env->cp15.c0_cachetype = 0x1dd20d2;
         break;
     case ARM_CPUID_CORTEXM3:
@@ -185,6 +184,11 @@ CPUARMState *cpu_arm_init(const char *cpu_model)
     env->cpu_model_str = cpu_model;
     env->cp15.c0_cpuid = id;
     cpu_reset(env);
+
+		env->qemu.sc_obj = 0;
+		env->qemu.ns_in_cpu_exec = 0;
+		env->qemu.fv_percent = 100;
+
     return env;
 }
 
@@ -465,8 +469,6 @@ uint32_t helper_get_r13_banked(CPUState *env, int mode)
 
 #else
 
-extern int semihosting_enabled;
-
 /* Map CPU modes onto saved register banks.  */
 static inline int bank_number (int mode)
 {
@@ -602,18 +604,6 @@ void do_interrupt_v7m(CPUARMState *env)
     case EXCP_DATA_ABORT:
         armv7m_nvic_set_pending(env->v7m.nvic, ARMV7M_EXCP_MEM);
         return;
-    case EXCP_BKPT:
-        if (semihosting_enabled) {
-            int nr;
-            nr = lduw_code(env->regs[15]) & 0xff;
-            if (nr == 0xab) {
-                env->regs[15] += 2;
-                env->regs[0] = do_arm_semihosting(env);
-                return;
-            }
-        }
-        armv7m_nvic_set_pending(env->v7m.nvic, ARMV7M_EXCP_DEBUG);
-        return;
     case EXCP_IRQ:
         env->v7m.exception = armv7m_nvic_acknowledge_irq(env->v7m.nvic);
         break;
@@ -673,22 +663,6 @@ void do_interrupt(CPUARMState *env)
             offset = 4;
         break;
     case EXCP_SWI:
-        if (semihosting_enabled) {
-            /* Check for semihosting interrupt.  */
-            if (env->thumb) {
-                mask = lduw_code(env->regs[15] - 2) & 0xff;
-            } else {
-                mask = ldl_code(env->regs[15] - 4) & 0xffffff;
-            }
-            /* Only intercept calls from privileged modes, to provide some
-               semblance of security.  */
-            if (((mask == 0x123456 && !env->thumb)
-                    || (mask == 0xab && env->thumb))
-                  && (env->uncached_cpsr & CPSR_M) != ARM_CPU_MODE_USR) {
-                env->regs[0] = do_arm_semihosting(env);
-                return;
-            }
-        }
         new_mode = ARM_CPU_MODE_SVC;
         addr = 0x08;
         mask = CPSR_I;

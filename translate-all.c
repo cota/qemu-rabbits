@@ -28,7 +28,6 @@
 #define NO_CPU_IO_DEFS
 #include "cpu.h"
 #include "exec-all.h"
-#include "disas.h"
 
 extern int dyngen_code(uint8_t *gen_code_buf,
                        uint16_t *label_offsets, uint16_t *jmp_offsets,
@@ -56,8 +55,6 @@ target_ulong gen_opc_jump_pc[2];
 #elif defined(TARGET_MIPS) || defined(TARGET_SH4)
 uint32_t gen_opc_hflags[OPC_BUF_SIZE];
 #endif
-
-int code_copy_enabled = 1;
 
 #ifdef DEBUG_DISAS
 static const char *op_str[] = {
@@ -179,14 +176,6 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
 #endif
                                 gen_opc_buf, gen_opparam_buf, gen_labels);
     *gen_code_size_ptr = gen_code_size;
-#ifdef DEBUG_DISAS
-    if (loglevel & CPU_LOG_TB_OUT_ASM) {
-        fprintf(logfile, "OUT: [size=%d]\n", *gen_code_size_ptr);
-        disas(logfile, tb->tc_ptr, *gen_code_size_ptr);
-        fprintf(logfile, "\n");
-        fflush(logfile);
-    }
-#endif
     return 0;
 }
 

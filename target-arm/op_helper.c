@@ -27,16 +27,16 @@ void raise_exception(int tt)
 
 /* thread support */
 
-spinlock_t global_cpu_lock = SPIN_LOCK_UNLOCKED;
+/* spinlock_t global_cpu_lock = SPIN_LOCK_UNLOCKED; */
 
 void cpu_lock(void)
 {
-    spin_lock(&global_cpu_lock);
+    /* spin_lock(&global_cpu_lock); */
 }
 
 void cpu_unlock(void)
 {
-    spin_unlock(&global_cpu_lock);
+    /* spin_unlock(&global_cpu_lock); */
 }
 
 /* VFP support.  */

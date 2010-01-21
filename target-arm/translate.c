@@ -27,7 +27,17 @@
 
 #include "cpu.h"
 #include "exec-all.h"
-#include "disas.h"
+
+//§§mari - ARM7
+#include <qemu_systemc.h>
+#include <arm_instr_cycles.h>
+
+#define DISAS_UPDATE_NO_EXTRA_CYCLES  100
+unsigned long tmp_physaddr = 0;
+
+#define JUMP_EXTRA_LOADED_INSTRUCTIONS              2
+static unsigned long b_first_instruction_in_tb = 0;
+static unsigned long last_pc_addr = 0;
 
 #define ENABLE_ARCH_5J    0
 #define ENABLE_ARCH_6     arm_feature(env, ARM_FEATURE_V6)
@@ -151,7 +161,7 @@ static GenOpFunc1 *gen_test_cc[14] = {
     gen_op_test_le,
 };
 
-const uint8_t table_logic_cc[16] = {
+static const uint8_t table_logic_cc[16] = {
     1, /* and */
     1, /* xor */
     0, /* sub */
@@ -413,7 +423,7 @@ static inline void gen_lookup_tb(DisasContext *s)
 {
     gen_op_movl_T0_im(s->pc);
     gen_movl_reg_T0(s, 15);
-    s->is_jmp = DISAS_UPDATE;
+		s->is_jmp = DISAS_UPDATE_NO_EXTRA_CYCLES;
 }
 
 static inline void gen_add_data_offset(DisasContext *s, unsigned int insn)
@@ -1735,6 +1745,10 @@ static int disas_cp15_insn(CPUState *env, DisasContext *s, uint32_t insn)
     }
     rd = (insn >> 12) & 0xf;
     if (insn & ARM_CP_RW_BIT) {
+#if COCPU_MRC_CYCLE_COST != 0
+      gen_op_inc_crt_nr_cycles_instr (COCPU_MRC_CYCLE_COST);
+#endif
+
         gen_op_movl_T0_cp15(insn);
         /* If the destination register is r15 then sets condition codes.  */
         if (rd != 15)
@@ -2457,6 +2471,12 @@ static inline void gen_jmp (DisasContext *s, uint32_t dest)
         gen_op_movl_T0_im(dest);
         gen_bx(s);
     } else {
+      gen_op_verify_instruction_cache_n (last_pc_addr + 4,
+																				 JUMP_EXTRA_LOADED_INSTRUCTIONS);
+#if JUMP_CYCLE_COST != 0
+      gen_op_inc_crt_nr_cycles_instr (JUMP_CYCLE_COST);
+#endif
+			
         gen_goto_tb(s, 0, dest);
         s->is_jmp = DISAS_TB_JUMP;
     }
@@ -4649,6 +4669,19 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
     unsigned int cond, insn, val, op1, i, shift, rm, rs, rn, rd, sh;
 
     insn = ldl_code(s->pc);
+
+  //§§mari
+#ifdef LOG_PC
+  gen_op_log_pc (tmp_physaddr);
+#endif
+  if (((tmp_physaddr & ((1 << ICACHE_LINE_BITS) - 1)) == 0)
+      || b_first_instruction_in_tb)
+    {
+      b_first_instruction_in_tb = 0;
+      gen_op_verify_instruction_cache (tmp_physaddr);
+    }
+  last_pc_addr = tmp_physaddr;
+
     s->pc += 4;
 
     /* M variants do not implement ARM mode.  */
@@ -4965,11 +4998,19 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
         case 0xa:
         case 0xc:
         case 0xe:
+#if SIGNED_MUL_CYCLE_COST != 0
+					gen_op_inc_crt_nr_cycles_instr (SIGNED_MUL_CYCLE_COST);
+#endif
+
             rs = (insn >> 8) & 0xf;
             rn = (insn >> 12) & 0xf;
             rd = (insn >> 16) & 0xf;
             if (op1 == 1) {
                 /* (32 * 16) >> 16 */
+#if MUL32_CYCLE_COST != 0
+							gen_op_inc_crt_nr_cycles_instr (MUL32_CYCLE_COST);
+#endif
+
                 gen_movl_T0_reg(s, rm);
                 gen_movl_T1_reg(s, rs);
                 if (sh & 4)
@@ -4984,6 +5025,10 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                 gen_movl_reg_T0(s, rd);
             } else {
                 /* 16 * 16 */
+#if MUL16_CYCLE_COST != 0
+	      gen_op_inc_crt_nr_cycles_instr (MUL16_CYCLE_COST);
+#endif
+
                 gen_movl_T0_reg(s, rm);
                 gen_movl_T1_reg(s, rs);
                 gen_mulxy(sh & 2, sh & 4);
@@ -5031,6 +5076,10 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
             if (!(insn & (1 << 4))) {
                 shift = (insn >> 7) & 0x1f;
                 if (shift != 0) {
+#if REGISTER_SHIFT_CYCLE_COST != 0
+		  gen_op_inc_crt_nr_cycles_instr (REGISTER_SHIFT_CYCLE_COST);
+#endif
+
                     if (logic_cc) {
                         gen_shift_T1_im_cc[shiftop](shift);
                     } else {
@@ -5194,16 +5243,28 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                     switch (op1) {
                     case 0: case 1: case 2: case 3: case 6:
                         /* 32 bit mul */
+#if MUL32_CYCLE_COST != 0
+		      gen_op_inc_crt_nr_cycles_instr (MUL32_CYCLE_COST);
+#endif
+
                         gen_movl_T0_reg(s, rs);
                         gen_movl_T1_reg(s, rm);
                         gen_op_mul_T0_T1();
                         if (insn & (1 << 22)) {
                             /* Subtract (mls) */
+#if MLS_CYCLE_COST != 0
+			  gen_op_inc_crt_nr_cycles_instr (MLS_CYCLE_COST);
+#endif
+
                             ARCH(6T2);
                             gen_movl_T1_reg(s, rn);
                             gen_op_rsbl_T0_T1();
                         } else if (insn & (1 << 21)) {
                             /* Add */
+#if MLA_CYCLE_COST != 0
+			  gen_op_inc_crt_nr_cycles_instr (MLA_CYCLE_COST);
+#endif
+
                             gen_movl_T1_reg(s, rn);
                             gen_op_addl_T0_T1();
                         }
@@ -5213,16 +5274,39 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                         break;
                     default:
                         /* 64 bit mul */
+#if MUL64_CYCLE_COST != 0
+											gen_op_inc_crt_nr_cycles_instr (MUL64_CYCLE_COST);
+#endif
+
                         gen_movl_T0_reg(s, rs);
                         gen_movl_T1_reg(s, rm);
                         if (insn & (1 << 22))
+													{
+#if MLS_CYCLE_COST != 0
+														gen_op_inc_crt_nr_cycles_instr (MLS_CYCLE_COST);
+#endif
+														
                             gen_op_imull_T0_T1();
+													}
                         else
+													{
                             gen_op_mull_T0_T1();
+													}
                         if (insn & (1 << 21)) /* mult accumulate */
+													{
+#if MLA_CYCLE_COST != 0
+														gen_op_inc_crt_nr_cycles_instr (MLA_CYCLE_COST);
+#endif
+
                             gen_op_addq_T0_T1(rn, rd);
+													}
                         if (!(insn & (1 << 23))) { /* double accumulate */
                             ARCH(6);
+
+#if MLAA_CYCLE_COST != 0
+														gen_op_inc_crt_nr_cycles_instr (MLAA_CYCLE_COST);
+#endif
+
                             gen_op_addq_lo_T0_T1(rn);
                             gen_op_addq_lo_T0_T1(rd);
                         }
@@ -5248,6 +5332,10 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                         gen_movl_reg_T0(s, rd);
                     } else {
                         /* SWP instruction */
+#if SWP_CYCLE_COST != 0
+											gen_op_inc_crt_nr_cycles_instr (SWP_CYCLE_COST);
+#endif
+
                         rm = (insn) & 0xf;
 
                         gen_movl_T0_reg(s, rm);
@@ -5571,6 +5659,11 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
             if (insn & (1 << 20)) {
                 /* load */
                 s->is_mem = 1;
+
+#if LOAD_CYCLE_COST != 0
+								gen_op_inc_crt_nr_cycles_instr (LOAD_CYCLE_COST);
+#endif
+
 #if defined(CONFIG_USER_ONLY)
                 if (insn & (1 << 22))
                     gen_op_ldub_raw();
@@ -5591,6 +5684,10 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
 #endif
             } else {
                 /* store */
+#if STORE_CYCLE_COST != 0
+							gen_op_inc_crt_nr_cycles_instr (STORE_CYCLE_COST);
+#endif
+
                 gen_movl_T0_reg(s, rd);
 #if defined(CONFIG_USER_ONLY)
                 if (insn & (1 << 22))
@@ -5649,6 +5746,27 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                     if (insn & (1 << i))
                         n++;
                 }
+
+								if (insn & (1 << 20))	//read
+									{
+										int nc =
+											n * MULTI_TRANSFER_PER_REGISTER_CYCLE_COST +
+											MULTI_TRANSFER_LOAD_OP_CYCLE_COST;
+										if (insn & (1 << 15))	//SOCLIB counts has -1 cycle error for LDMIA with PC in list
+											nc--;
+										if (nc > 0)
+											gen_op_inc_crt_nr_cycles_instr (nc);
+									}
+								else
+									{
+										if (n * MULTI_TRANSFER_PER_REGISTER_CYCLE_COST +
+												MULTI_TRANSFER_STORE_OP_CYCLE_COST)
+											gen_op_inc_crt_nr_cycles_instr (n *
+																											MULTI_TRANSFER_PER_REGISTER_CYCLE_COST
+																											+
+																											MULTI_TRANSFER_STORE_OP_CYCLE_COST);
+									}
+
                 /* XXX: test invalid n == 0 case ? */
                 if (insn & (1 << 23)) {
                     if (insn & (1 << 24)) {
@@ -5755,6 +5873,10 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
         case 0xd:
         case 0xe:
             /* Coprocessor.  */
+#if COCPU_CYCLE_COST != 0
+					gen_op_inc_crt_nr_cycles_instr (COCPU_CYCLE_COST);
+#endif
+
             if (disas_coproc_insn(env, s, insn))
                 goto illegal_op;
             break;
@@ -7468,6 +7590,9 @@ undef:
     s->is_jmp = DISAS_JUMP;
 }
 
+volatile DisasContext *tmp_dc = 0;
+volatile unsigned long last_pc_executed = 0;
+
 /* generate intermediate code in gen_opc_buf and gen_opparam_buf for
    basic block 'tb'. If search_pc is TRUE, also generate PC
    information for each intermediate instruction. */
@@ -7481,6 +7606,7 @@ static inline int gen_intermediate_code_internal(CPUState *env,
     target_ulong pc_start;
     uint32_t next_page_start;
 
+		tmp_dc = dc;
     /* generate intermediate code */
     pc_start = tb->pc;
 
@@ -7512,7 +7638,22 @@ static inline int gen_intermediate_code_internal(CPUState *env,
        complications trying to do it at the end of the block.  */
     if (env->condexec_bits)
       gen_op_set_condexec(0);
+
+  //§§mari
+  gen_op_start_tb ();
+	b_first_instruction_in_tb = 1;
+
     do {
+      //§§mari
+      gen_op_inc_crt_nr_cycles_instr (NORMAL_INSTRUCTION_CYCLE_COST);
+
+#ifdef COUNT_INSTR_FOR_DEBUG
+      gen_op_inc_crt_nr_instr ();
+#endif
+#ifdef WRITE_PC_FOR_DEBUG
+      gen_op_write_pc (dc->pc);
+#endif
+
 #ifndef CONFIG_USER_ONLY
         if (dc->pc >= 0xfffffff0 && IS_M(env)) {
             /* We always get here via a jump, so know we are not in a
@@ -7621,10 +7762,18 @@ static inline int gen_intermediate_code_internal(CPUState *env,
         case DISAS_NEXT:
             gen_goto_tb(dc, 1, dc->pc);
             break;
-        default:
         case DISAS_JUMP:
         case DISAS_UPDATE:
             /* indicate that the hash table must be used to find the next TB */
+					gen_op_verify_instruction_cache_n (last_pc_addr + 4,
+																						 JUMP_EXTRA_LOADED_INSTRUCTIONS);
+
+#if JUMP_CYCLE_COST != 0
+					gen_op_inc_crt_nr_cycles_instr (JUMP_CYCLE_COST);
+#endif
+
+				case DISAS_UPDATE_NO_EXTRA_CYCLES:
+				default:
             gen_op_movl_T0_0();
             gen_op_exit_tb();
             break;
@@ -7632,12 +7781,30 @@ static inline int gen_intermediate_code_internal(CPUState *env,
             /* nothing more to generate */
             break;
         case DISAS_WFI:
+					gen_op_verify_instruction_cache_n (last_pc_addr + 4,
+																						 JUMP_EXTRA_LOADED_INSTRUCTIONS);
+
+#if JUMP_CYCLE_COST != 0
+					gen_op_inc_crt_nr_cycles_instr (JUMP_CYCLE_COST);
+#endif
+
             gen_op_wfi();
             break;
         case DISAS_SWI:
+					gen_op_verify_instruction_cache_n (last_pc_addr + 4,
+																						 JUMP_EXTRA_LOADED_INSTRUCTIONS);
+
+#if JUMP_CYCLE_COST != 0
+					gen_op_inc_crt_nr_cycles_instr (JUMP_CYCLE_COST);
+#endif
+
             gen_op_swi();
             break;
         }
+
+				if (dc->is_jmp == DISAS_UPDATE_NO_EXTRA_CYCLES)
+					dc->is_jmp = DISAS_UPDATE;
+
         if (dc->condjmp) {
             gen_set_label(dc->condlabel);
             gen_set_condexec(dc);
@@ -7648,19 +7815,6 @@ static inline int gen_intermediate_code_internal(CPUState *env,
 done_generating:
     *gen_opc_ptr = INDEX_op_end;
 
-#ifdef DEBUG_DISAS
-    if (loglevel & CPU_LOG_TB_IN_ASM) {
-        fprintf(logfile, "----------------\n");
-        fprintf(logfile, "IN: %s\n", lookup_symbol(pc_start));
-        target_disas(logfile, pc_start, dc->pc - pc_start, env->thumb);
-        fprintf(logfile, "\n");
-        if (loglevel & (CPU_LOG_TB_OP)) {
-            fprintf(logfile, "OP:\n");
-            dump_ops(gen_opc_buf, gen_opparam_buf);
-            fprintf(logfile, "\n");
-        }
-    }
-#endif
     if (search_pc) {
         j = gen_opc_ptr - gen_opc_buf;
         lj++;

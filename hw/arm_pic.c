@@ -10,16 +10,6 @@
 #include "hw.h"
 #include "arm-misc.h"
 
-/* Stub functions for hardware that doesn't exist.  */
-void pic_info(void)
-{
-}
-
-void irq_info(void)
-{
-}
-
-
 /* Input 0 is IRQ and input 1 is FIQ.  */
 static void arm_pic_cpu_handler(void *opaque, int irq, int level)
 {
@@ -45,4 +35,22 @@ static void arm_pic_cpu_handler(void *opaque, int irq, int level)
 qemu_irq *arm_pic_init_cpu(CPUState *env)
 {
     return qemu_allocate_irqs(arm_pic_cpu_handler, env, 2);
+}
+
+void
+armv7m_nvic_set_pending (void *opaque, int irq)
+{
+  qemu_set_irq ((qemu_irq) opaque, 1);
+}
+
+int
+armv7m_nvic_acknowledge_irq (void *opaque)
+{
+  return 0;
+}
+
+void
+armv7m_nvic_complete_irq (void *opaque, int irq)
+{
+  qemu_set_irq ((qemu_irq) opaque, 0);
 }

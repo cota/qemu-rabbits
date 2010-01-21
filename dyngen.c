@@ -2831,6 +2831,17 @@ fprintf(outfile,
                 gen_code(name, sym->st_value, sym->st_size, outfile, 1);
             }
         }
+/*
+    //§§mari
+	fprintf(outfile, "\t\tcase 0X1234:\n");
+    fprintf (outfile, "\t\t\t{\n\t\t\textern void test_mari_block_start_1 ();\n");
+    fprintf (outfile, "\t\t\t*gen_code_ptr++ = 0xB8;\n");
+    fprintf (outfile, "\t\t\t*(unsigned long *) gen_code_ptr = (unsigned long) &test_mari_block_start_1;\n");
+    fprintf (outfile, "\t\t\tgen_code_ptr += 4;\n");
+    fprintf (outfile, "\t\t\t*gen_code_ptr++ = 0xFF;\n");
+    fprintf (outfile, "\t\t\t*gen_code_ptr++ = 0xD0;\n\t\t\t}\n");
+	fprintf (outfile, "\t\t\tbreak;\n");
+*/
 
 fprintf(outfile,
 "        case INDEX_op_nop:\n"
