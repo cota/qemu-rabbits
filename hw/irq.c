@@ -23,6 +23,7 @@
  */
 #include "qemu-common.h"
 #include "irq.h"
+#include "qemu_encap.h"
 
 struct IRQState {
     qemu_irq_handler handler;
@@ -69,3 +70,23 @@ qemu_irq qemu_irq_invert(qemu_irq irq)
     qemu_irq_raise(irq);
     return qemu_allocate_irqs(qemu_notirq, irq, 1)[0];
 }
+
+void qemu_irq_update (qemu_instance *instance, int cpu_mask, int level)
+{
+    if (!instance || !instance->irqs_systemc)
+        return;
+
+    int cpu;
+
+    for (cpu = 0; cpu < instance->NOCPUs; cpu++)
+    {
+        if (cpu_mask & (1 << cpu))
+        {
+            if (instance->irqs_systemc[cpu] == NULL)
+                return;
+
+            qemu_set_irq ((qemu_irq) instance->irqs_systemc[cpu], level);
+        }
+    }
+}
+

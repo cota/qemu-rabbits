@@ -45,6 +45,11 @@
 
 #ifdef BSWAP_NEEDED
 
+static inline uint8_t tswap8(uint8_t s)
+{
+    return s;
+}
+
 static inline uint16_t tswap16(uint16_t s)
 {
     return bswap16(s);
@@ -76,6 +81,11 @@ static inline void tswap64s(uint64_t *s)
 }
 
 #else
+
+static inline uint8_t tswap8(uint8_t s)
+{
+    return s;
+}
 
 static inline uint16_t tswap16(uint16_t s)
 {

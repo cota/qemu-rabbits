@@ -172,7 +172,9 @@ void OPPROTO op_iwmmxt_adduq_M0_wRn(void)
 
 void OPPROTO op_iwmmxt_movq_wRn_M0(void)
 {
-    M1 = M0;
+//    M1 = M0;
+	volatile uint64_t		*addr = &M1;
+	*addr = M0;
 }
 
 void OPPROTO op_iwmmxt_movl_wCx_T0(void)

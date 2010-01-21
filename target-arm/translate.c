@@ -37,7 +37,7 @@ unsigned long tmp_physaddr = 0;
 
 #define JUMP_EXTRA_LOADED_INSTRUCTIONS              2
 static unsigned long b_first_instruction_in_tb = 0;
-static unsigned long last_pc_addr = 0;
+static unsigned long last_decoded_pc_addr = 0;
 
 #define ENABLE_ARCH_5J    0
 #define ENABLE_ARCH_6     arm_feature(env, ARM_FEATURE_V6)
@@ -2464,19 +2464,21 @@ static inline void gen_goto_tb(DisasContext *s, int n, uint32_t dest)
 
 static inline void gen_jmp (DisasContext *s, uint32_t dest)
 {
-    if (__builtin_expect(s->singlestep_enabled, 0)) {
+    if (__builtin_expect(s->singlestep_enabled, 0))
+    {
         /* An indirect jump so that we still trigger the debug exception.  */
         if (s->thumb)
-          dest |= 1;
+            dest |= 1;
         gen_op_movl_T0_im(dest);
         gen_bx(s);
-    } else {
-      gen_op_verify_instruction_cache_n (last_pc_addr + 4,
-																				 JUMP_EXTRA_LOADED_INSTRUCTIONS);
-#if JUMP_CYCLE_COST != 0
-      gen_op_inc_crt_nr_cycles_instr (JUMP_CYCLE_COST);
-#endif
-			
+    }
+    else
+    {
+        gen_op_verify_instruction_cache_n (last_decoded_pc_addr + 4, JUMP_EXTRA_LOADED_INSTRUCTIONS);
+        #if JUMP_CYCLE_COST != 0
+        gen_op_inc_crt_nr_cycles_instr (JUMP_CYCLE_COST);
+        #endif
+
         gen_goto_tb(s, 0, dest);
         s->is_jmp = DISAS_TB_JUMP;
     }
@@ -4664,23 +4666,25 @@ static int disas_coproc_insn(CPUState * env, DisasContext *s, uint32_t insn)
     }
 }
 
-static void disas_arm_insn(CPUState * env, DisasContext *s)
+static void disas_arm_insn (CPUState * env, DisasContext *s)
 {
     unsigned int cond, insn, val, op1, i, shift, rm, rs, rn, rd, sh;
 
     insn = ldl_code(s->pc);
 
-  //§§mari
-#ifdef LOG_PC
-  gen_op_log_pc (tmp_physaddr);
-#endif
-  if (((tmp_physaddr & ((1 << ICACHE_LINE_BITS) - 1)) == 0)
-      || b_first_instruction_in_tb)
+    //§§mari
+    #ifdef LOG_PC
+    gen_op_log_pc (tmp_physaddr);
+    #endif
+    #ifdef GDB_ENABLED
+    gen_op_gdb_verify (s->pc);
+    #endif
+    if (((tmp_physaddr & ((1 << ICACHE_LINE_BITS) - 1)) == 0) || b_first_instruction_in_tb)
     {
-      b_first_instruction_in_tb = 0;
-      gen_op_verify_instruction_cache (tmp_physaddr);
+        b_first_instruction_in_tb = 0;
+        gen_op_verify_instruction_cache (tmp_physaddr);
     }
-  last_pc_addr = tmp_physaddr;
+    last_decoded_pc_addr = tmp_physaddr;
 
     s->pc += 4;
 
@@ -7606,7 +7610,7 @@ static inline int gen_intermediate_code_internal(CPUState *env,
     target_ulong pc_start;
     uint32_t next_page_start;
 
-		tmp_dc = dc;
+    tmp_dc = dc;
     /* generate intermediate code */
     pc_start = tb->pc;
 
@@ -7624,13 +7628,13 @@ static inline int gen_intermediate_code_internal(CPUState *env,
     dc->condexec_mask = (env->condexec_bits & 0xf) << 1;
     dc->condexec_cond = env->condexec_bits >> 4;
     dc->is_mem = 0;
-#if !defined(CONFIG_USER_ONLY)
+    #if !defined(CONFIG_USER_ONLY)
     if (IS_M(env)) {
         dc->user = ((env->v7m.exception == 0) && (env->v7m.control & 1));
     } else {
         dc->user = (env->uncached_cpsr & 0x1f) == ARM_CPU_MODE_USR;
     }
-#endif
+    #endif
     next_page_start = (pc_start & TARGET_PAGE_MASK) + TARGET_PAGE_SIZE;
     nb_gen_labels = 0;
     lj = -1;
@@ -7639,28 +7643,29 @@ static inline int gen_intermediate_code_internal(CPUState *env,
     if (env->condexec_bits)
       gen_op_set_condexec(0);
 
-  //§§mari
-  gen_op_start_tb ();
-	b_first_instruction_in_tb = 1;
+    //§§mari
+    gen_op_start_tb ();
+    b_first_instruction_in_tb = 1;
 
-    do {
-      //§§mari
-      gen_op_inc_crt_nr_cycles_instr (NORMAL_INSTRUCTION_CYCLE_COST);
+    do
+    {
+        //§§mari
+        gen_op_inc_crt_nr_cycles_instr (NORMAL_INSTRUCTION_CYCLE_COST);
 
-#ifdef COUNT_INSTR_FOR_DEBUG
-      gen_op_inc_crt_nr_instr ();
-#endif
-#ifdef WRITE_PC_FOR_DEBUG
-      gen_op_write_pc (dc->pc);
-#endif
+        #ifdef COUNT_INSTR_FOR_DEBUG
+        gen_op_inc_crt_nr_instr ();
+        #endif
+        #ifdef WRITE_PC_FOR_DEBUG
+        gen_op_write_pc (dc->pc);
+        #endif
 
-#ifndef CONFIG_USER_ONLY
+        #ifndef CONFIG_USER_ONLY
         if (dc->pc >= 0xfffffff0 && IS_M(env)) {
             /* We always get here via a jump, so know we are not in a
                conditional execution block.  */
             gen_op_exception_exit();
         }
-#endif
+        #endif
 
         if (env->nb_breakpoints > 0) {
             for(j = 0; j < env->nb_breakpoints; j++) {
@@ -7765,15 +7770,14 @@ static inline int gen_intermediate_code_internal(CPUState *env,
         case DISAS_JUMP:
         case DISAS_UPDATE:
             /* indicate that the hash table must be used to find the next TB */
-					gen_op_verify_instruction_cache_n (last_pc_addr + 4,
-																						 JUMP_EXTRA_LOADED_INSTRUCTIONS);
+            gen_op_verify_instruction_cache_n (last_decoded_pc_addr + 4, JUMP_EXTRA_LOADED_INSTRUCTIONS);
 
-#if JUMP_CYCLE_COST != 0
-					gen_op_inc_crt_nr_cycles_instr (JUMP_CYCLE_COST);
-#endif
+            #if JUMP_CYCLE_COST != 0
+            gen_op_inc_crt_nr_cycles_instr (JUMP_CYCLE_COST);
+            #endif
 
-				case DISAS_UPDATE_NO_EXTRA_CYCLES:
-				default:
+        case DISAS_UPDATE_NO_EXTRA_CYCLES:
+        default:
             gen_op_movl_T0_0();
             gen_op_exit_tb();
             break;
@@ -7781,22 +7785,20 @@ static inline int gen_intermediate_code_internal(CPUState *env,
             /* nothing more to generate */
             break;
         case DISAS_WFI:
-					gen_op_verify_instruction_cache_n (last_pc_addr + 4,
-																						 JUMP_EXTRA_LOADED_INSTRUCTIONS);
+            gen_op_verify_instruction_cache_n (last_decoded_pc_addr + 4, JUMP_EXTRA_LOADED_INSTRUCTIONS);
 
-#if JUMP_CYCLE_COST != 0
-					gen_op_inc_crt_nr_cycles_instr (JUMP_CYCLE_COST);
-#endif
+            #if JUMP_CYCLE_COST != 0
+                gen_op_inc_crt_nr_cycles_instr (JUMP_CYCLE_COST);
+            #endif
 
             gen_op_wfi();
             break;
         case DISAS_SWI:
-					gen_op_verify_instruction_cache_n (last_pc_addr + 4,
-																						 JUMP_EXTRA_LOADED_INSTRUCTIONS);
+            gen_op_verify_instruction_cache_n (last_decoded_pc_addr + 4, JUMP_EXTRA_LOADED_INSTRUCTIONS);
 
-#if JUMP_CYCLE_COST != 0
-					gen_op_inc_crt_nr_cycles_instr (JUMP_CYCLE_COST);
-#endif
+            #if JUMP_CYCLE_COST != 0
+                gen_op_inc_crt_nr_cycles_instr (JUMP_CYCLE_COST);
+            #endif
 
             gen_op_swi();
             break;

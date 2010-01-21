@@ -185,10 +185,6 @@ CPUARMState *cpu_arm_init(const char *cpu_model)
     env->cp15.c0_cpuid = id;
     cpu_reset(env);
 
-		env->qemu.sc_obj = 0;
-		env->qemu.ns_in_cpu_exec = 0;
-		env->qemu.fv_percent = 100;
-
     return env;
 }
 
@@ -669,18 +665,6 @@ void do_interrupt(CPUARMState *env)
         /* The PC already points to the next instructon.  */
         offset = 0;
         break;
-    case EXCP_BKPT:
-        /* See if this is a semihosting syscall.  */
-        if (env->thumb && semihosting_enabled) {
-            mask = lduw_code(env->regs[15]) & 0xff;
-            if (mask == 0xab
-                  && (env->uncached_cpsr & CPSR_M) != ARM_CPU_MODE_USR) {
-                env->regs[15] += 2;
-                env->regs[0] = do_arm_semihosting(env);
-                return;
-            }
-        }
-        /* Fall through to prefetch abort.  */
     case EXCP_PREFETCH_ABORT:
         new_mode = ARM_CPU_MODE_ABT;
         addr = 0x0c;
@@ -1016,7 +1000,7 @@ static int get_phys_addr_mpu(CPUState *env, uint32_t address, int access_type,
     return 0;
 }
 
-static inline int get_phys_addr(CPUState *env, uint32_t address,
+inline int get_phys_addr(CPUState *env, uint32_t address,
                                 int access_type, int is_user,
                                 uint32_t *phys_ptr, int *prot)
 {
@@ -1468,7 +1452,7 @@ uint32_t helper_get_cp15(CPUState *env, uint32_t insn)
                 case 3: /* TLB type register.  */
                     return 0; /* No lockable TLB entries.  */
                 case 5: /* CPU ID */
-                    return env->cpu_index;
+                    return env->cpu_index + crt_qemu_instance->firstcpuindex;
                 default:
                     goto bad_reg;
                 }

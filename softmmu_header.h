@@ -19,31 +19,35 @@
  */
 
 #include <qemu_systemc.h>
-#include <systemc_imports.h>
+#include <qemu_encap.h>
 void printf_fulul (unsigned long, unsigned long, unsigned long,
 									 unsigned long);
 
 
 #if DATA_SIZE == 8
-#define SUFFIX q
-#define USUFFIX q
-#define DATA_TYPE uint64_t
+    #define DATA_SIZE_BITS 64
+    #define SUFFIX q
+    #define USUFFIX q
+    #define DATA_TYPE uint64_t
 #elif DATA_SIZE == 4
-#define SUFFIX l
-#define USUFFIX l
-#define DATA_TYPE uint32_t
+    #define DATA_SIZE_BITS 32
+    #define SUFFIX l
+    #define USUFFIX l
+    #define DATA_TYPE uint32_t
 #elif DATA_SIZE == 2
-#define SUFFIX w
-#define USUFFIX uw
-#define DATA_TYPE uint16_t
-#define DATA_STYPE int16_t
+    #define DATA_SIZE_BITS 16
+    #define SUFFIX w
+    #define USUFFIX uw
+    #define DATA_TYPE uint16_t
+    #define DATA_STYPE int16_t
 #elif DATA_SIZE == 1
-#define SUFFIX b
-#define USUFFIX ub
-#define DATA_TYPE uint8_t
-#define DATA_STYPE int8_t
+    #define DATA_SIZE_BITS 8
+    #define SUFFIX b
+    #define USUFFIX ub
+    #define DATA_TYPE uint8_t
+    #define DATA_STYPE int8_t
 #else
-#error unsupported data size
+    #error unsupported data size
 #endif
 
 #if ACCESS_TYPE < (NB_MMU_MODES)
@@ -230,25 +234,23 @@ static inline void glue(glue(st, SUFFIX), MEMSUFFIX)(target_ulong ptr, RES_TYPE 
 
 #ifndef _ALREADY_INCLUDED_EXTERN_CACHE_ACCESS_
 #define _ALREADY_INCLUDED_EXTERN_CACHE_ACCESS_
+    extern unsigned long tmp_physaddr;
+    extern unsigned char b_in_translation;
+    extern uint8_t *phys_ram_base;
+    extern unsigned long long g_no_write;
+    extern unsigned long long g_no_uncached;
 
-     extern unsigned long tmp_physaddr;
-     extern unsigned char b_in_translation;
-     extern uint8_t *phys_ram_base;
-     extern unsigned long long g_no_write;
-     extern unsigned long long g_no_uncached;
+    extern void *data_cache_access (void);
+    extern unsigned long long data_cache_accessq (void);
+    extern unsigned long data_cache_accessl (void);
+    extern unsigned short data_cache_accessw (void);
+    extern unsigned char data_cache_accessb (void);
 
-     extern void *data_cache_access (void);
-     extern unsigned long long data_cache_accessq (void);
-     extern unsigned long data_cache_accessl (void);
-     extern unsigned short data_cache_accessw (void);
-     extern unsigned char data_cache_accessb (void);
-
-     extern void write_access (unsigned long addr, int nb, unsigned long val);
-#define write_accessq(addr,val) write_access(addr,8,val)
-#define write_accessl(addr,val) write_access(addr,4,val)
-#define write_accessw(addr,val) write_access(addr,2,val)
-#define write_accessb(addr,val) write_access(addr,1,val)
-
+    extern void write_access (unsigned long addr, int nb, unsigned long val);
+    extern void write_accessq (unsigned long addr, unsigned long long val);
+    #define write_accessl(addr,val) write_access(addr,4,val)
+    #define write_accessw(addr,val) write_access(addr,2,val)
+    #define write_accessb(addr,val) write_access(addr,1,val)
 #endif
 
 /* generic load/store macros */
@@ -265,20 +267,25 @@ static inline RES_TYPE glue(glue(ld, USUFFIX), MEMSUFFIX)(target_ulong ptr)
     index = (addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
     mmu_idx = CPU_MMU_INDEX;
     if (__builtin_expect(env->tlb_table[mmu_idx][index].ADDR_READ !=
-                         (addr & (TARGET_PAGE_MASK | (DATA_SIZE - 1))), 0)) {
+                         (addr & (TARGET_PAGE_MASK | (DATA_SIZE - 1))), 0))
+    {
         res = glue(glue(__ld, SUFFIX), MMUSUFFIX)(addr, mmu_idx);
-    } else {
+    }
+    else
+    {
         physaddr = addr + env->tlb_table[mmu_idx][index].addend;
 
-				tmp_physaddr = physaddr - (unsigned long) phys_ram_base;
-				if (!b_in_translation)
-					{
-						res = glue (data_cache_access, SUFFIX) ();
-					}
-				else
-					{
-						res = *(RES_TYPE *) systemc_get_mem_addr (tmp_physaddr);
-					}
+        tmp_physaddr = physaddr - (unsigned long) phys_ram_base;
+        if (!b_in_translation)
+        {
+            res = glue (tswap, DATA_SIZE_BITS) (glue (data_cache_access, SUFFIX) ());
+        }
+        else
+        {
+            res = glue (tswap, DATA_SIZE_BITS) (*(RES_TYPE *)
+                crt_qemu_instance->systemc.systemc_get_mem_addr (
+                env->qemu.sc_obj, tmp_physaddr));
+        }
     }
     return res;
 }
@@ -295,20 +302,26 @@ static inline int glue(glue(lds, SUFFIX), MEMSUFFIX)(target_ulong ptr)
     index = (addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
     mmu_idx = CPU_MMU_INDEX;
     if (__builtin_expect(env->tlb_table[mmu_idx][index].ADDR_READ !=
-                         (addr & (TARGET_PAGE_MASK | (DATA_SIZE - 1))), 0)) {
+                         (addr & (TARGET_PAGE_MASK | (DATA_SIZE - 1))), 0))
+    {
         res = (DATA_STYPE)glue(glue(__ld, SUFFIX), MMUSUFFIX)(addr, mmu_idx);
-    } else {
+    }
+    else
+    {
         physaddr = addr + env->tlb_table[mmu_idx][index].addend;
 
-				tmp_physaddr = physaddr - (unsigned long) phys_ram_base;
-				if (!b_in_translation)
-					{
-						res = glue (data_cache_access, SUFFIX) ();
-					}
-				else
-					{
-						res = *(DATA_STYPE *) systemc_get_mem_addr (tmp_physaddr);
-					}
+        tmp_physaddr = physaddr - (unsigned long) phys_ram_base;
+        if (!b_in_translation)
+        {
+            res = glue (tswap, DATA_SIZE_BITS) (
+                glue (data_cache_access, SUFFIX) ());
+        }
+        else
+        {
+            res = glue (tswap, DATA_SIZE_BITS) (*(DATA_STYPE *)
+                crt_qemu_instance->systemc.systemc_get_mem_addr (
+                env->qemu.sc_obj, tmp_physaddr));
+        }
     }
     return res;
 }
@@ -329,16 +342,20 @@ static inline void glue(glue(st, SUFFIX), MEMSUFFIX)(target_ulong ptr, RES_TYPE 
     index = (addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
     mmu_idx = CPU_MMU_INDEX;
     if (__builtin_expect(env->tlb_table[mmu_idx][index].addr_write !=
-                         (addr & (TARGET_PAGE_MASK | (DATA_SIZE - 1))), 0)) {
+                         (addr & (TARGET_PAGE_MASK | (DATA_SIZE - 1))), 0))
+    {
         glue(glue(__st, SUFFIX), MMUSUFFIX)(addr, v, mmu_idx);
-    } else {
+    }
+    else
+    {
         physaddr = addr + env->tlb_table[mmu_idx][index].addend;
 
-      if (!b_in_translation)
-				{
-					glue (write_access,	SUFFIX) (physaddr - (unsigned long) phys_ram_base,
-																			 (unsigned long) v);
-				}
+        if (!b_in_translation)
+        {
+            glue (write_access,	SUFFIX) (
+                physaddr - (unsigned long) phys_ram_base,
+                glue (tswap, DATA_SIZE_BITS) (v));
+        }
     }
 }
 
@@ -397,6 +414,7 @@ static inline void glue(stfl, MEMSUFFIX)(target_ulong ptr, float32 v)
 #undef RES_TYPE
 #undef DATA_TYPE
 #undef DATA_STYPE
+#undef DATA_SIZE_BITS
 #undef SUFFIX
 #undef USUFFIX
 #undef DATA_SIZE

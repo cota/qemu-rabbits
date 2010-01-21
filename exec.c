@@ -160,12 +160,12 @@ typedef struct subpage_t {
 
 void exec_c_init ()
 {
-    crt_qemu_instance->l1_map = (unsigned long) malloc (L1_SIZE * sizeof (PageDesc *));
-    memset ((void *)crt_qemu_instance->l1_map, 0, L1_SIZE * sizeof (PageDesc *));
-    crt_qemu_instance->tb_phys_hash = (unsigned long) malloc (CODE_GEN_PHYS_HASH_SIZE * sizeof (TranslationBlock *));
-    memset ((void *)crt_qemu_instance->tb_phys_hash, 0, CODE_GEN_PHYS_HASH_SIZE * sizeof (TranslationBlock *));
-    crt_qemu_instance->tbs = (unsigned long) malloc (CODE_GEN_MAX_BLOCKS * sizeof (TranslationBlock));
-    memset ((void *)crt_qemu_instance->tbs, 0, CODE_GEN_MAX_BLOCKS * sizeof (TranslationBlock));
+    crt_qemu_instance->l1_map = malloc (L1_SIZE * sizeof (PageDesc *));
+    memset (crt_qemu_instance->l1_map, 0, L1_SIZE * sizeof (PageDesc *));
+    crt_qemu_instance->tb_phys_hash = malloc (CODE_GEN_PHYS_HASH_SIZE * sizeof (TranslationBlock *));
+    memset (crt_qemu_instance->tb_phys_hash, 0, CODE_GEN_PHYS_HASH_SIZE * sizeof (TranslationBlock *));
+    crt_qemu_instance->tbs = malloc (CODE_GEN_MAX_BLOCKS * sizeof (TranslationBlock));
+    memset (crt_qemu_instance->tbs, 0, CODE_GEN_MAX_BLOCKS * sizeof (TranslationBlock));
 }
 
 static void page_init(void)
@@ -313,7 +313,9 @@ void cpu_exec_init(CPUState *env)
     CPUState **penv;
     int cpu_index;
 
-    if (!code_gen_ptr) {
+    if (!crt_qemu_instance->init_point_1)
+    {
+			  crt_qemu_instance->init_point_1 = 1;
         code_gen_ptr = code_gen_buffer;
         page_init();
         io_mem_init();

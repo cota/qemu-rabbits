@@ -1,5 +1,7 @@
 include config.mak
 
+SHOW_CMD=@
+
 TARGET_BASE_ARCH:=$(TARGET_ARCH)
 ifeq ($(TARGET_ARCH), x86_64)
 TARGET_BASE_ARCH:=i386
@@ -345,7 +347,8 @@ endif
 all: $(PROGS)
 
 $(QEMU_USER): $(OBJS)
-	$(CC) $(LDFLAGS) $(BASE_LDFLAGS) -o $@ $^  $(LIBS)
+	@echo "Compiling $(notdir $<) ..."
+	$(SHOW_CMD)$(CC) $(LDFLAGS) $(BASE_LDFLAGS) -o $@ $^  $(LIBS)
 ifeq ($(ARCH),alpha)
 # Mark as 32 bit binary, i. e. it will be mapped into the low 31 bit of
 # the address space (31 bit so sign extending doesn't matter)
@@ -363,6 +366,8 @@ ifdef CONFIG_VNC_TLS
 CPPFLAGS += $(CONFIG_VNC_TLS_CFLAGS)
 LIBS += $(CONFIG_VNC_TLS_LIBS)
 endif
+
+VL_OBJS+= gdb_srv.o
 
 ifeq ($(TARGET_BASE_ARCH), i386)
 # Hardware support
@@ -405,17 +410,12 @@ VL_OBJS+= etraxfs_ser.o
 endif
 ifeq ($(TARGET_BASE_ARCH), sparc)
 ifeq ($(TARGET_ARCH), sparc64)
-VL_OBJS+= sun4u.o ide.o pckbd.o ps2.o vga.o apb_pci.o
-VL_OBJS+= fdc.o mc146818rtc.o m48t59.o
-VL_OBJS+= cirrus_vga.o parallel.o ptimer.o
+VL_OBJS+= sparc_generic.o
 else
-VL_OBJS+= sun4m.o tcx.o pcnet.o iommu.o m48t59.o slavio_intctl.o
-VL_OBJS+= slavio_timer.o slavio_serial.o slavio_misc.o fdc.o esp.o sparc32_dma.o
-VL_OBJS+= cs4231.o ptimer.o eccmemctl.o sbi.o sun4c_intctl.o
+VL_OBJS+= sparc_generic.o
 endif
 endif
 ifeq ($(TARGET_BASE_ARCH), arm)
-VL_OBJS+= arm_pic.o
 VL_OBJS+= arm_generic.o
 endif
 ifeq ($(TARGET_BASE_ARCH), sh4)
@@ -481,19 +481,22 @@ SDL_LIBS := $(filter-out -mwindows, $(SDL_LIBS)) -mconsole
 endif
 
 $(QEMU_SYSTEM): $(VL_OBJS) ../libqemu_common.a libqemu.a
-	$(CC) -shared $(VL_LDFLAGS) $(LDFLAGS) -o lib$@.so $^ $(LIBS) $(COCOA_LIBS) $(VL_LIBS) -Wl,--version-script=../exp.def
+	@echo Building lib$(notdir $@).so ...
+	$(SHOW_CMD)$(CC) -shared $(VL_LDFLAGS) $(LDFLAGS) -o lib$@.so $^ $(LIBS) $(COCOA_LIBS) $(VL_LIBS) -Wl,--version-script=exp.def
+	@cp lib$@.so ../../../libs
 
 depend: $(SRCS)
-	$(CC) -MM $(CFLAGS) $(CPPFLAGS) $(BASE_CFLAGS) $^ 1>.depend
+	@$(CC) -MM $(CFLAGS) $(CPPFLAGS) $(BASE_CFLAGS) $^ 1>.depend
 
 vldepend: $(VL_OBJS:.o=.c)
-	$(CC) -MM $(CFLAGS) $(CPPFLAGS) $(BASE_CFLAGS) $^ 1>.depend
+	@$(CC) -MM $(CFLAGS) $(CPPFLAGS) $(BASE_CFLAGS) $^ 1>.depend
 
 # libqemu
 
 libqemu.a: $(LIBOBJS)
-	rm -f $@
-	$(AR) rcs $@ $(LIBOBJS)
+	@echo Building $(notdir $@) ...
+	@rm -f $@
+	@$(AR) rcs $@ $(LIBOBJS)
 
 translate.o: translate.c gen-op.h opc.h cpu.h
 
@@ -502,45 +505,56 @@ translate-all.o: translate-all.c opc.h cpu.h
 translate-op.o: translate-all.c op.h opc.h cpu.h
 
 op.h: op.o $(DYNGEN)
-	$(DYNGEN) -o $@ $<
+	@echo "Generating $@ ..."
+	$(SHOW_CMD)$(DYNGEN) -o $@ $<
 
 opc.h: op.o $(DYNGEN)
-	$(DYNGEN) -c -o $@ $<
+	@echo "Generating $@ ..."
+	$(SHOW_CMD)$(DYNGEN) -c -o $@ $<
 
 gen-op.h: op.o $(DYNGEN)
-	$(DYNGEN) -g -o $@ $<
+	@echo "Generating $@ ..."
+	$(SHOW_CMD)$(DYNGEN) -g -o $@ $<
 
 op.o: op.c
-	$(CC) $(OP_CFLAGS) $(CPPFLAGS) -c -o $@ $<
+	@echo "Compiling $(notdir $<) ..."
+	$(SHOW_CMD)$(CC) $(OP_CFLAGS) $(CPPFLAGS) -c -o $@ $<
 
 # HELPER_CFLAGS is used for all the code compiled with static register
 # variables
 ifeq ($(TARGET_BASE_ARCH), i386)
 # XXX: rename helper.c to op_helper.c
 helper.o: helper.c
-	$(CC) $(HELPER_CFLAGS) $(CPPFLAGS) $(BASE_CFLAGS) -c -o $@ $<
+	@echo "Compiling $(notdir $<) ..."
+	$(SHOW_CMD)$(CC) $(HELPER_CFLAGS) $(CPPFLAGS) $(BASE_CFLAGS) -c -o $@ $<
 else
 op_helper.o: op_helper.c
-	$(CC) $(HELPER_CFLAGS) $(CPPFLAGS) $(BASE_CFLAGS) -c -o $@ $<
+	@echo "Compiling $(notdir $<) ..."
+	$(SHOW_CMD)$(CC) $(HELPER_CFLAGS) $(CPPFLAGS) $(BASE_CFLAGS) -c -o $@ $<
 endif
 
 cpu-exec.o: cpu-exec.c
-	$(CC) $(HELPER_CFLAGS) $(CPPFLAGS) $(BASE_CFLAGS) -c -o $@ $<
+	@echo "Compiling $(notdir $<) ..."
+	$(SHOW_CMD)$(CC) $(HELPER_CFLAGS) $(CPPFLAGS) $(BASE_CFLAGS) -c -o $@ $<
 
 # Note: this is a workaround. The real fix is to avoid compiling
 # cpu_signal_handler() in cpu-exec.c.
 signal.o: signal.c
-	$(CC) $(HELPER_CFLAGS) $(CPPFLAGS) $(BASE_CFLAGS) -c -o $@ $<
+	@echo "Compiling $(notdir $<) ..."
+	$(SHOW_CMD)$(CC) $(HELPER_CFLAGS) $(CPPFLAGS) $(BASE_CFLAGS) -c -o $@ $<
 
 %.o: %.c
-	$(CC) $(CFLAGS) $(CPPFLAGS) $(BASE_CFLAGS) -c -o $@ $<
+	@echo "Compiling $(notdir $<) ..."
+	$(SHOW_CMD)$(CC) $(CFLAGS) $(CPPFLAGS) $(BASE_CFLAGS) -c -o $@ $<
 
 %.o: %.S
-	$(CC) $(CPPFLAGS) -c -o $@ $<
+	@echo "Compiling $(notdir $<) ..."
+	$(SHOW_CMD)$(CC) $(CPPFLAGS) -c -o $@ $<
 
 clean:
-	rm -f *.o *.a *~ $(PROGS) gen-op.h opc.h op.h nwfpe/*.o fpu/*.o
-	rm -f *.d */*.d
+	@echo "Cleaning ..."
+	@rm -f *.o *.a *~ $(PROGS) gen-op.h opc.h op.h nwfpe/*.o fpu/*.o
+	@rm -f *.d */*.d
 
 install: all
 ifneq ($(PROGS),)

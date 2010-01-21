@@ -157,10 +157,12 @@ typedef struct CPUTLBEntry {
     const char *cpu_model_str;                                          \
     struct                                                              \
     {                                                                   \
-        unsigned long               sc_obj;                             \
+        void                        *sc_obj;                            \
         unsigned long               fv_percent;                         \
         unsigned long               ns_in_cpu_exec;                     \
         qemu_instance               *qemu_instance;                     \
-    } qemu;                                                             
+        int                         gdb_cpu_index;                      \
+    } qemu;                                                             \
+    target_ulong gdb_pc;       /* program counter */
 
 #endif

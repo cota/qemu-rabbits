@@ -1,16 +1,9 @@
-/*
- * Generic ARM Programmable Interrupt Controller support.
- *
- * Copyright (c) 2006 CodeSourcery.
- * Written by Paul Brook
- *
- * This code is licenced under the LGPL
- */
-
 #include "hw.h"
-#include "arm-misc.h"
+#include "qemu_encap.h"
 
-/* Input 0 is IRQ and input 1 is FIQ.  */
+#define ARM_PIC_CPU_IRQ 0
+#define ARM_PIC_CPU_FIQ 1
+
 static void arm_pic_cpu_handler(void *opaque, int irq, int level)
 {
     CPUState *env = (CPUState *)opaque;
@@ -53,4 +46,36 @@ void
 armv7m_nvic_complete_irq (void *opaque, int irq)
 {
   qemu_set_irq ((qemu_irq) opaque, 0);
+}
+
+void
+arm_generic_machine_init (int ram_size, const char *cpu_model)
+{
+    int i;
+    CPUState *env;
+    qemu_irq *pic;
+
+    if (!cpu_model)
+        cpu_model = "arm926";
+
+    crt_qemu_instance->irqs_systemc = malloc (crt_qemu_instance->NOCPUs * sizeof (qemu_irq));
+
+    for (i = 0; i < crt_qemu_instance->NOCPUs; i++)
+    {
+        env = cpu_init (cpu_model);
+        if (!env)
+        {
+            fprintf (stderr, "Unable to find CPU definition\n");
+            exit (1);
+        }
+
+	    env->qemu.fv_percent = 100;
+        env->qemu.qemu_instance = crt_qemu_instance;
+        pic = arm_pic_init_cpu (env);
+        env->v7m.nvic = (void *) pic[ARM_PIC_CPU_IRQ];
+        crt_qemu_instance->irqs_systemc[i] = pic[ARM_PIC_CPU_IRQ];
+    }
+
+    /* RAM shoud repeat to fill physical memory space, SDRAM at address zero.  */
+    cpu_register_physical_memory (0, ram_size, IO_MEM_RAM);
 }
