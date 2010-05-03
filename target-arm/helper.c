@@ -5,6 +5,8 @@
 #include "cpu.h"
 #include "exec-all.h"
 
+extern unsigned long get_phys_addr_gdb (unsigned long addr);
+
 static uint32_t cortexa8_cp15_c0_c1[8] =
 { 0x1031, 0x11, 0x400, 0, 0x31100003, 0x20000000, 0x01202000, 0x11 };
 
@@ -1075,17 +1077,36 @@ target_phys_addr_t cpu_get_phys_page_debug(CPUState *env, target_ulong addr)
 
 void helper_mark_exclusive(CPUState *env, uint32_t addr)
 {
-    env->mmon_addr = addr;
+    addr = get_phys_addr_gdb (addr);
+     env->mmon_addr = addr;
+    crt_qemu_instance->systemc.memory_mark_exclusive (
+        env->cpu_platform_index, addr);
 }
 
-int helper_test_exclusive(CPUState *env, uint32_t addr)
+int helper_test_exclusive(CPUState *env, uint32_t addr, uint32_t *phys_addr)
 {
-    return (env->mmon_addr != addr);
+    addr = get_phys_addr_gdb (addr);
+    *phys_addr = addr;
+
+    return (env->mmon_addr == -1) ||
+        crt_qemu_instance->systemc.memory_test_exclusive (
+        env->cpu_platform_index, addr);
 }
 
 void helper_clrex(CPUState *env)
 {
-    env->mmon_addr = -1;
+    if (env->mmon_addr != -1)
+    {
+        uint32_t        phys_addr;
+        
+        if (!helper_test_exclusive (env, env->mmon_addr, &phys_addr))
+        {
+            crt_qemu_instance->systemc.memory_clear_exclusive (
+                env->cpu_platform_index, phys_addr);
+        }
+
+        env->mmon_addr = -1;
+    }
 }
 
 void helper_set_cp(CPUState *env, uint32_t insn, uint32_t val)
@@ -1452,7 +1473,7 @@ uint32_t helper_get_cp15(CPUState *env, uint32_t insn)
                 case 3: /* TLB type register.  */
                     return 0; /* No lockable TLB entries.  */
                 case 5: /* CPU ID */
-                    return env->cpu_index + crt_qemu_instance->firstcpuindex;
+					 return env->cpu_platform_index;
                 default:
                     goto bad_reg;
                 }

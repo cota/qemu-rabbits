@@ -62,6 +62,7 @@ void optimize_flags_init(void);
 extern FILE *logfile;
 extern int loglevel;
 
+void start_debug (void);
 int gen_intermediate_code(CPUState *env, struct TranslationBlock *tb);
 int gen_intermediate_code_pc(CPUState *env, struct TranslationBlock *tb);
 void dump_ops(const uint16_t *opc_buf, const uint32_t *opparam_buf);

@@ -1414,6 +1414,20 @@ qemu_systemc_write_all (void *opaque, target_phys_addr_t offset, uint32_t value,
     RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
 }
 
+void just_synchronize (void)
+{
+    SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
+    int ninstr = s_crt_nr_cycles_instr;
+    if (ninstr)
+    {
+        s_crt_nr_cycles_instr = 0;
+        _save_crt_qemu_instance->systemc.systemc_qemu_consume_instruction_cycles (
+            _save_cpu_single_env->qemu.sc_obj,
+            ninstr, &_save_cpu_single_env->qemu.ns_in_cpu_exec);
+    }
+    RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
+}
+
 static uint32_t
 qemu_systemc_read_b (void *opaque, target_phys_addr_t offset)
 {
@@ -1572,6 +1586,29 @@ qemu_get_clock_with_systemc ()
     
     return crt_qemu_instance->systemc.systemc_qemu_get_time ();
 }
+
+#if defined(TARGET_ARM)
+extern int get_phys_addr (CPUState *env, uint32_t address,
+    int access_type, int is_user, uint32_t *phys_ptr, int *prot);
+
+unsigned long get_phys_addr_gdb (unsigned long addr)
+{
+    int             prot;
+    uint32_t        phys_ptr;
+
+    if (!get_phys_addr(cpu_single_env, addr, 0, 0, &phys_ptr, &prot))
+        addr = phys_ptr;
+
+    return addr;
+}
+
+#elif defined(TARGET_SPARC)
+unsigned long get_phys_addr_gdb (unsigned long addr)
+{
+    return addr;
+}
+#endif
+
 
 extern unsigned long tmp_physaddr;
 #ifdef LOG_PC

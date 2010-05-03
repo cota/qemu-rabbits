@@ -68,7 +68,9 @@ arm_generic_machine_init (int ram_size, const char *cpu_model)
             fprintf (stderr, "Unable to find CPU definition\n");
             exit (1);
         }
-
+		
+        env->mmon_addr = -1;
+        env->cpu_platform_index = i + crt_qemu_instance->firstcpuindex;
 	    env->qemu.fv_percent = 100;
         env->qemu.qemu_instance = crt_qemu_instance;
         pic = arm_pic_init_cpu (env);
@@ -78,4 +80,5 @@ arm_generic_machine_init (int ram_size, const char *cpu_model)
 
     /* RAM shoud repeat to fill physical memory space, SDRAM at address zero.  */
     cpu_register_physical_memory (0, ram_size, IO_MEM_RAM);
+    cpu_register_physical_memory (0x85000000, 0x1000, 0x85000000);
 }

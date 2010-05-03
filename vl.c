@@ -63,6 +63,12 @@ sigint_h (int x)
     g_gdb_state.running_state = STATE_STEP;
 }
 
+void start_debug (void)
+{
+    if (g_gdb_state.running_state != STATE_DETACH)
+        g_gdb_state.running_state = STATE_STEP;
+}
+
 static uint32_t default_ioport_readb(void *opaque, uint32_t address)
 {
 #ifdef DEBUG_UNUSED_IOPORT

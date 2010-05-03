@@ -43,24 +43,7 @@ static int              write_watchpoint = 0;
 static unsigned long    watchpoint_new_value = 0;
 static unsigned long    watchpoint_address = 0;
 
-#if defined(TARGET_ARM)
-extern int get_phys_addr (CPUState *env, uint32_t address,
-    int access_type, int is_user, uint32_t *phys_ptr, int *prot);
-
-unsigned long get_phys_addr_gdb (unsigned long addr)
-{
-    int             prot;
-    uint32_t        phys_ptr;
-    
-    if (!get_phys_addr(cpu_single_env, addr, 0, 0, &phys_ptr, &prot))
-        addr = phys_ptr;
-
-    return addr;
-}
-
-#elif defined(TARGET_SPARC)
-#define get_phys_addr_gdb(addr) addr
-#endif
+extern unsigned long get_phys_addr_gdb (unsigned long addr);
 
 /* The GDB remote protocol transfers values in target byte order.  This means
 we can use the raw memory access routines to access the value buffer.

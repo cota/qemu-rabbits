@@ -1,7 +1,7 @@
 #ifndef _GDB_SRV_H_
 #define _GDB_SRV_H_
 
-#define MAX_PACKET_LENGTH 4096
+#define MAX_PACKET_LENGTH (4096 * 4)
 
 typedef enum
 {

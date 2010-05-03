@@ -1,6 +1,8 @@
 /* ARM memory operations.  */
 
 void helper_ld(uint32_t);
+extern void just_synchronize (void);
+
 /* Load from address T1 into T0.  */
 #define MEM_LD_OP(name) \
 void OPPROTO glue(op_ld##name,MEMSUFFIX)(void) \
@@ -55,6 +57,7 @@ MEM_SWP_OP(l, l)
 void OPPROTO glue(op_ld##suffix##ex,MEMSUFFIX)(void) \
 { \
     cpu_lock(); \
+    just_synchronize (); \
     helper_mark_exclusive(env, T1); \
     T0 = glue(ld##ldsuffix,MEMSUFFIX)(T1); \
     cpu_unlock(); \
@@ -64,12 +67,17 @@ void OPPROTO glue(op_ld##suffix##ex,MEMSUFFIX)(void) \
 void OPPROTO glue(op_st##suffix##ex,MEMSUFFIX)(void) \
 { \
     int failed; \
+    uint32_t phys_addr; \
     cpu_lock(); \
-    failed = helper_test_exclusive(env, T1); \
+    just_synchronize (); \
+    failed = helper_test_exclusive(env, T1, &phys_addr); \
     /* ??? Is it safe to hold the cpu lock over a store?  */ \
     if (!failed) { \
         glue(st##suffix,MEMSUFFIX)(T1, T0); \
+        crt_qemu_instance->systemc.memory_clear_exclusive ( \
+            env->cpu_platform_index, phys_addr); \
     } \
+    env->mmon_addr = -1;                \
     T0 = failed; \
     cpu_unlock(); \
     FORCE_RET(); \
@@ -96,12 +104,17 @@ void OPPROTO glue(op_ldqex,MEMSUFFIX)(void)
 void OPPROTO glue(op_stqex,MEMSUFFIX)(void)
 {
     int failed;
+    uint32_t phys_addr;
     cpu_lock();
-    failed = helper_test_exclusive(env, T1);
+    failed = helper_test_exclusive(env, T1, &phys_addr);
     /* ??? Is it safe to hold the cpu lock over a store?  */
     if (!failed) {
         glue(stl,MEMSUFFIX)(T1, T0);
         glue(stl,MEMSUFFIX)((T1 + 4), T2);
+		
+        env->mmon_addr = -1;
+        crt_qemu_instance->systemc.memory_clear_exclusive (
+            env->cpu_platform_index, phys_addr);
     }
     T0 = failed;
     cpu_unlock();

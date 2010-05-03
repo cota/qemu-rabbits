@@ -151,6 +151,7 @@ typedef struct CPUTLBEntry {
                                                                         \
     void *next_cpu; /* next CPU sharing TB cache */                     \
     int cpu_index; /* CPU index (informative) */                        \
+    int cpu_platform_index;                                             \
     /* user data */                                                     \
     void *opaque;                                                       \
                                                                         \
