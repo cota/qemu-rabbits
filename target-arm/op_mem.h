@@ -2,6 +2,7 @@
 
 void helper_ld(uint32_t);
 extern void just_synchronize (void);
+extern void call_wait_wb_empty ();
 
 /* Load from address T1 into T0.  */
 #define MEM_LD_OP(name) \
@@ -74,6 +75,7 @@ void OPPROTO glue(op_st##suffix##ex,MEMSUFFIX)(void) \
     /* ??? Is it safe to hold the cpu lock over a store?  */ \
     if (!failed) { \
         glue(st##suffix,MEMSUFFIX)(T1, T0); \
+        call_wait_wb_empty (); \
         crt_qemu_instance->systemc.memory_clear_exclusive ( \
             env->cpu_platform_index, phys_addr); \
     } \

@@ -1428,6 +1428,13 @@ void just_synchronize (void)
     RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
 }
 
+void call_wait_wb_empty ()
+{
+    SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
+    _save_crt_qemu_instance->systemc.wait_wb_empty (_save_cpu_single_env->qemu.sc_obj);
+    RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
+}
+
 static uint32_t
 qemu_systemc_read_b (void *opaque, target_phys_addr_t offset)
 {
@@ -1718,7 +1725,7 @@ write_access (unsigned long addr, int nb, unsigned long val)
 
     g_no_write++;
 
-    int                 i, cpu = cpu_single_env->cpu_index;
+    int                 cpu = cpu_single_env->cpu_index;
     unsigned long       tag = addr >> DCACHE_LINE_BITS;
     unsigned long       ofs = addr & DCACHE_LINE_MASK;
     int                 idx = tag & (DCACHE_LINES - 1);
@@ -1777,17 +1784,6 @@ write_access (unsigned long addr, int nb, unsigned long val)
         _save_cpu_single_env->qemu.sc_obj, addr,
         val, nb, &_save_cpu_single_env->qemu.ns_in_cpu_exec, 0);
 
-    for (i = 0; i < _save_crt_qemu_instance->NOCPUs; i++)
-    {
-        if (i != cpu && _save_crt_qemu_instance->cpu_dcache[i][idx] == tag)
-            _save_crt_qemu_instance->cpu_dcache[i][idx] = (unsigned long) -1;
-        
-        if (_save_crt_qemu_instance->cpu_icache[i][idx] == tag)
-            _save_crt_qemu_instance->cpu_icache[i][idx] = (unsigned long) -1;
-    }
-
-    _save_crt_qemu_instance->systemc.systemc_invalidate_address (_save_crt_qemu_instance, addr);
-
     RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
 }
 
@@ -1840,7 +1836,7 @@ instruction_cache_access_n (unsigned long addr, int n)
 }
 
 void
-qemu_invalidate_address (qemu_instance *instance, unsigned long addr)
+qemu_invalidate_address (qemu_instance *instance, unsigned long addr, int src_idx)
 {
     unsigned long           dtag = addr >> DCACHE_LINE_BITS;
     int                     didx = dtag & (DCACHE_LINES - 1);
@@ -1850,7 +1846,7 @@ qemu_invalidate_address (qemu_instance *instance, unsigned long addr)
     int                     i;
     for (i = 0; i < instance->NOCPUs; i++)
     {
-        if (instance->cpu_dcache[i][didx] == dtag)
+        if (i != src_idx && instance->cpu_dcache[i][didx] == dtag)
             instance->cpu_dcache[i][didx] = (unsigned long) -1;
 
         if (instance->cpu_icache[i][iidx] == itag)

@@ -357,7 +357,7 @@ void qemu_get_counters (unsigned long long *no_instr,
     unsigned long long *no_write,
     unsigned long long *no_icache_miss,
     unsigned long long *no_uncached);
-void qemu_invalidate_address (qemu_instance *instance, unsigned long addr);
+void qemu_invalidate_address (qemu_instance *instance, unsigned long addr, int src_idx);
 void glue(TARGET_ARCH_,_generic_machine_init) (int ram_size, const char *cpu_model);
 void exec_c_init (void);
 
