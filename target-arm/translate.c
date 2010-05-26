@@ -5327,11 +5327,17 @@ static void disas_arm_insn (CPUState * env, DisasContext *s)
                         /* load/store exclusive */
                         gen_movl_T1_reg(s, rn);
                         if (insn & (1 << 20)) {
-                            gen_ldst(ldlex, s);
+                            if (insn & (1 << 22))
+                                gen_ldst(ldbex, s);
+                            else
+                                gen_ldst(ldlex, s);
                         } else {
                             rm = insn & 0xf;
                             gen_movl_T0_reg(s, rm);
-                            gen_ldst(stlex, s);
+                            if (insn & (1 << 22))
+                                gen_ldst(stbex, s);
+                            else
+                                gen_ldst(stlex, s);
                         }
                         gen_movl_reg_T0(s, rd);
                     } else {

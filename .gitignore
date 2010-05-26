@@ -1,0 +1,12 @@
+arm-softmmu
+config-host.h
+config-host.mak
+cutils.d
+cutils.o
+dyngen
+dyngen.d
+irq.d
+irq.o
+libqemu_common.a
+sparc-softmmu
+
