@@ -1717,6 +1717,18 @@ data_cache_accessb ()
     return *(unsigned char *) data_cache_access ();
 }
 
+signed short
+data_cache_access_signed_w ()
+{
+    return * (signed short *) data_cache_access ();
+}
+
+signed char
+data_cache_access_signed_b ()
+{
+    return * (signed  char *) data_cache_access ();
+}
+
 void
 write_access (unsigned long addr, int nb, unsigned long val)
 {

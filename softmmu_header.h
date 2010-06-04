@@ -245,6 +245,8 @@ static inline void glue(glue(st, SUFFIX), MEMSUFFIX)(target_ulong ptr, RES_TYPE 
     extern unsigned long data_cache_accessl (void);
     extern unsigned short data_cache_accessw (void);
     extern unsigned char data_cache_accessb (void);
+    extern signed short data_cache_access_signed_w (void);
+    extern signed char data_cache_access_signed_b (void);
 
     extern void write_access (unsigned long addr, int nb, unsigned long val);
     extern void write_accessq (unsigned long addr, unsigned long long val);
@@ -313,8 +315,10 @@ static inline int glue(glue(lds, SUFFIX), MEMSUFFIX)(target_ulong ptr)
         tmp_physaddr = physaddr - (unsigned long) phys_ram_base;
         if (!b_in_translation)
         {
-            res = glue (tswap, DATA_SIZE_BITS) (
-                glue (data_cache_access, SUFFIX) ());
+            res = glue (data_cache_access_signed_, SUFFIX) ();
+            #if DATA_SIZE == 2
+            glue (glue (tswap, DATA_SIZE_BITS), s) ((DATA_TYPE *) &res);
+            #endif
         }
         else
         {
