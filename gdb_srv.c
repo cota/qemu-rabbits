@@ -775,9 +775,9 @@ static RSState gdb_handle_packet (GDBState *s, const char *line_buf)
     case 'm': //read memory
         addr = strtoull (p, (char **) &p, 16);
 
-        b_in_translation = 1;
+        b_use_backdoor = 1;
         addr = get_phys_addr_gdb (addr);
-        b_in_translation = 0;
+        b_use_backdoor = 0;
 
         if (*p == ',')
             p++;

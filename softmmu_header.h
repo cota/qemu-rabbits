@@ -235,7 +235,7 @@ static inline void glue(glue(st, SUFFIX), MEMSUFFIX)(target_ulong ptr, RES_TYPE 
 #ifndef _ALREADY_INCLUDED_EXTERN_CACHE_ACCESS_
 #define _ALREADY_INCLUDED_EXTERN_CACHE_ACCESS_
     extern unsigned long tmp_physaddr;
-    extern unsigned char b_in_translation;
+    extern unsigned char b_use_backdoor;
     extern uint8_t *phys_ram_base;
     extern unsigned long long g_no_write;
     extern unsigned long long g_no_uncached;
@@ -278,7 +278,7 @@ static inline RES_TYPE glue(glue(ld, USUFFIX), MEMSUFFIX)(target_ulong ptr)
         physaddr = addr + env->tlb_table[mmu_idx][index].addend;
 
         tmp_physaddr = physaddr - (unsigned long) phys_ram_base;
-        if (!b_in_translation)
+        if (!b_use_backdoor)
         {
             res = glue (tswap, DATA_SIZE_BITS) (glue (data_cache_access, SUFFIX) ());
         }
@@ -313,7 +313,7 @@ static inline int glue(glue(lds, SUFFIX), MEMSUFFIX)(target_ulong ptr)
         physaddr = addr + env->tlb_table[mmu_idx][index].addend;
 
         tmp_physaddr = physaddr - (unsigned long) phys_ram_base;
-        if (!b_in_translation)
+        if (!b_use_backdoor)
         {
             res = glue (data_cache_access_signed_, SUFFIX) ();
             #if DATA_SIZE == 2
@@ -354,12 +354,9 @@ static inline void glue(glue(st, SUFFIX), MEMSUFFIX)(target_ulong ptr, RES_TYPE 
     {
         physaddr = addr + env->tlb_table[mmu_idx][index].addend;
 
-        if (!b_in_translation)
-        {
-            glue (write_access,	SUFFIX) (
-                physaddr - (unsigned long) phys_ram_base,
-                glue (tswap, DATA_SIZE_BITS) (v));
-        }
+       glue (write_access,	SUFFIX) (
+            physaddr - (unsigned long) phys_ram_base,
+            glue (tswap, DATA_SIZE_BITS) (v));
     }
 }
 

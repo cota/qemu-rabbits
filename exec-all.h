@@ -179,6 +179,10 @@ typedef struct TranslationBlock {
        jmp_first */
     struct TranslationBlock *jmp_next[2];
     struct TranslationBlock *jmp_first;
+
+    uint8_t                     *flush_tc_end;
+    int                         flush_cnt;
+    struct TranslationBlock     *flush_next;
 } TranslationBlock;
 
 static inline unsigned int tb_jmp_cache_hash_page(target_ulong pc)
@@ -506,8 +510,6 @@ static inline int spin_trylock(spinlock_t *lock)
 #endif
 
 /* extern spinlock_t tb_lock; */
-
-extern int tb_invalidated_flag;
 
 #if !defined(CONFIG_USER_ONLY)
 

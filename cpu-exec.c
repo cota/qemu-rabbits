@@ -44,8 +44,6 @@ static int cpu_halted_systemc(void);
 #include <byteswap.h>
 #endif
 
-int tb_invalidated_flag;
-
 //#define DEBUG_EXEC
 //#define DEBUG_SIGNAL
 
@@ -129,7 +127,7 @@ void cpu_resume_from_signal(CPUState *env1, void *puc)
     longjmp(env->jmp_env, 1);
 }
 
-unsigned char b_in_translation = 0;
+unsigned char b_use_backdoor = 0;
 #define macro_tb_phys_hash ((TranslationBlock *(*)) crt_qemu_instance->tb_phys_hash)
 
 static TranslationBlock *tb_find_slow(target_ulong pc,
@@ -142,13 +140,11 @@ static TranslationBlock *tb_find_slow(target_ulong pc,
     target_ulong phys_pc, phys_page1, phys_page2, virt_page2;
     uint8_t *tc_ptr;
 
-		b_in_translation = 1;
-
     /* spin_lock(&tb_lock); */
 
-    tb_invalidated_flag = 0;
-
     regs_to_env(); /* XXX: do it just before cpu_gen_code() */
+
+    env->tb_invalidated_flag = 0;
 
     /* find translated block using physical mappings */
     phys_pc = get_phys_addr_code(env, pc);
@@ -186,7 +182,7 @@ static TranslationBlock *tb_find_slow(target_ulong pc,
         /* cannot fail at this point */
         tb = tb_alloc(pc);
         /* don't forget to invalidate previous TB info */
-        tb_invalidated_flag = 1;
+        env->tb_invalidated_flag = 1;
     }
     tc_ptr = code_gen_ptr;
     tb->tc_ptr = tc_ptr;
@@ -196,6 +192,8 @@ static TranslationBlock *tb_find_slow(target_ulong pc,
     cpu_gen_code(env, tb, &code_gen_size);
     RESTORE_GLOBALS();
     code_gen_ptr = (void *)(((unsigned long)code_gen_ptr + code_gen_size + CODE_GEN_ALIGN - 1) & ~(CODE_GEN_ALIGN - 1));
+
+    tb->flush_tc_end = code_gen_ptr;
 
     /* check next page if needed */
     virt_page2 = (pc + tb->size - 1) & TARGET_PAGE_MASK;
@@ -209,8 +207,6 @@ static TranslationBlock *tb_find_slow(target_ulong pc,
     /* we add the TB in the virtual pc hash table */
     env->tb_jmp_cache[tb_jmp_cache_hash_func(pc)] = tb;
     /* spin_unlock(&tb_lock); */
-
-		b_in_translation = 0;
 
     return tb;
 }
@@ -286,7 +282,7 @@ static inline TranslationBlock *tb_find_fast(void)
         tb = tb_find_slow(pc, cs_base, flags);
         /* Note: we do it here to avoid a gcc bug on Mac OS X when
            doing it in tb_find_slow */
-        if (tb_invalidated_flag) {
+        if (env->tb_invalidated_flag) {
             /* as some TB could have been invalidated because
                of memory exceptions while generating the code, we
                must recompute the hash index here */
@@ -297,6 +293,43 @@ static inline TranslationBlock *tb_find_fast(void)
 }
 
 #define BREAK_CHAIN T0 = 0
+
+static void flush_orphan_tb ()
+{
+    if (cpu_single_env->flush_last_tb == NULL)
+        return;
+
+    TranslationBlock    *tb = cpu_single_env->flush_last_tb;
+    cpu_single_env->flush_last_tb = NULL;
+
+    if (cpu_single_env->need_flush || tb->flush_cnt)
+    {
+        if (!cpu_single_env->need_flush || !tb->flush_cnt)
+        {
+            printf ("%s: env->need_flush=%d, tb->flush_cnt=%d\n",
+                __FUNCTION__, cpu_single_env->need_flush, tb->flush_cnt);
+            exit (1);
+        }
+
+        cpu_single_env->need_flush = 0;
+        tb->flush_cnt--;
+        if (tb->flush_cnt == 0)
+        {
+            TranslationBlock    **ptb;
+            ptb = (struct TranslationBlock **) &crt_qemu_instance->flush_head;
+            while (*ptb && *ptb != tb)
+                ptb = & (*ptb)->flush_next;
+            if (!*ptb)
+            {
+                printf ("%s: cannot find TB in the flushing list!\n", __FUNCTION__);
+                exit (1);
+            }
+            *ptb = (*ptb)->flush_next;
+        }
+    }
+}
+
+
 
 /* main execution loop */
 
@@ -316,7 +349,7 @@ int cpu_exec(CPUState *env1)
     TranslationBlock *tb;
     uint8_t *tc_ptr;
 
-    env1->qemu.ns_in_cpu_exec = 0;
+    b_use_backdoor = 1;
 
     cpu_single_env = env1;
 
@@ -507,11 +540,18 @@ int cpu_exec(CPUState *env1)
                 env->current_tb = tb;
                 /* execute the generated code */
                 gen_func = (void *)tc_ptr;
+                b_use_backdoor = 0;
                 gen_func();
+                b_use_backdoor = 1;
                 env->current_tb = NULL;
+                flush_orphan_tb ();
             } /* for(;;) */
-        } else {
+        }
+        else
+        {
             env_to_regs();
+            b_use_backdoor = 1;
+            flush_orphan_tb ();
         }
     } /* for(;;) */
 
@@ -1332,17 +1372,20 @@ int cpu_signal_handler(int host_signum, void *pinfo,
         qemu_instance   *_save_crt_qemu_instance = crt_qemu_instance; \
         CPUState        *_save_cpu_single_env = cpu_single_env; \
         CPUState        *_save_env = env; \
-        int             _save_tb_invalidated_flag = tb_invalidated_flag; \
         crt_qemu_instance = NULL; \
         env = NULL; \
         cpu_single_env = NULL; \
-        tb_invalidated_flag = 0
+        uint32_t        _save_T0 = T0; \
+        uint32_t        _save_T1 = T1; \
+        unsigned char   _save_b_use_backdoor = b_use_backdoor
 
 #define RESTORE_ENV_AFTER_CONSUME_SYSTEMC() \
         crt_qemu_instance = _save_crt_qemu_instance; \
         cpu_single_env = _save_cpu_single_env; \
         env = _save_env; \
-        tb_invalidated_flag = _save_tb_invalidated_flag; \
+        T0 = _save_T0; \
+        T1 = _save_T1; \
+        b_use_backdoor = _save_b_use_backdoor; \
     }while (0)
 
 unsigned long s_crt_nr_cycles_instr = 0;
@@ -1379,13 +1422,11 @@ qemu_systemc_read_all (void *opaque, target_phys_addr_t offset,
     {
         s_crt_nr_cycles_instr = 0;
         _save_crt_qemu_instance->systemc.systemc_qemu_consume_instruction_cycles (
-            _save_cpu_single_env->qemu.sc_obj,
-            ninstr, &_save_cpu_single_env->qemu.ns_in_cpu_exec);
+            _save_cpu_single_env->qemu.sc_obj, ninstr);
     }
 
     value = _save_crt_qemu_instance->systemc.systemc_qemu_read_memory (
-        _save_cpu_single_env->qemu.sc_obj, offset,
-        nbytes, &_save_cpu_single_env->qemu.ns_in_cpu_exec, bIO);
+        _save_cpu_single_env->qemu.sc_obj, offset, nbytes, bIO);
 
     RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
 
@@ -1403,13 +1444,11 @@ qemu_systemc_write_all (void *opaque, target_phys_addr_t offset, uint32_t value,
     {
         s_crt_nr_cycles_instr = 0;
         _save_crt_qemu_instance->systemc.systemc_qemu_consume_instruction_cycles (
-            _save_cpu_single_env->qemu.sc_obj,
-            ninstr, &_save_cpu_single_env->qemu.ns_in_cpu_exec);
+            _save_cpu_single_env->qemu.sc_obj, ninstr);
     }
 
     _save_crt_qemu_instance->systemc.systemc_qemu_write_memory (
-        _save_cpu_single_env->qemu.sc_obj, offset,
-        value, nbytes, &_save_cpu_single_env->qemu.ns_in_cpu_exec, bIO);
+        _save_cpu_single_env->qemu.sc_obj, offset, value, nbytes, bIO);
 
     RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
 }
@@ -1422,8 +1461,7 @@ void just_synchronize (void)
     {
         s_crt_nr_cycles_instr = 0;
         _save_crt_qemu_instance->systemc.systemc_qemu_consume_instruction_cycles (
-            _save_cpu_single_env->qemu.sc_obj,
-            ninstr, &_save_cpu_single_env->qemu.ns_in_cpu_exec);
+            _save_cpu_single_env->qemu.sc_obj, ninstr);
     }
     RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
 }
@@ -1511,13 +1549,16 @@ qemu_set_cpu_fv_percent (CPUState * penv, unsigned long fv_percent)
 }
 
 void
-tb_start ()
+tb_start (TranslationBlock *tb)
 {
-    if (cpu_single_env->qemu.ns_in_cpu_exec +
-        (s_crt_nr_cycles_instr * 100) / cpu_single_env->qemu.fv_percent > 40000)
+    cpu_single_env->flush_last_tb = tb;
+
+    if (s_crt_nr_cycles_instr > 10000)
+
     {
-        //printf ("tb_start - > 40000, sctime = %llu\n", systemc_qemu_get_time ());
+        b_use_backdoor = 1;
         cpu_interrupt (cpu_single_env, CPU_INTERRUPT_EXIT);
+        b_use_backdoor = 0;
     }
 }
 
@@ -1550,8 +1591,7 @@ cpu_halted_systemc ()
                     {
                         s_crt_nr_cycles_instr = 0;
                         _save_crt_qemu_instance->systemc.systemc_qemu_consume_instruction_cycles (
-                            _save_cpu_single_env->qemu.sc_obj, ninstr,
-                            &_save_cpu_single_env->qemu.ns_in_cpu_exec);
+                            _save_cpu_single_env->qemu.sc_obj, ninstr);
                     }
 
                     _save_crt_qemu_instance->systemc.systemc_qemu_wakeup (penv->qemu.sc_obj);
@@ -1585,8 +1625,7 @@ qemu_get_clock_with_systemc ()
 
         s_crt_nr_cycles_instr = 0;
         _save_crt_qemu_instance->systemc.systemc_qemu_consume_instruction_cycles (
-            _save_cpu_single_env->qemu.sc_obj, ninstr,
-            &_save_cpu_single_env->qemu.ns_in_cpu_exec);
+            _save_cpu_single_env->qemu.sc_obj, ninstr);
 
         RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
     }
@@ -1628,7 +1667,7 @@ data_cache_access ()
     int cpu, idx;
     unsigned long addr, tag;
 
-    if (b_in_translation)
+    if (b_use_backdoor)
         return crt_qemu_instance->systemc.systemc_get_mem_addr (
                 cpu_single_env->qemu.sc_obj, tmp_physaddr);
 
@@ -1647,24 +1686,23 @@ data_cache_access ()
         #endif
 
         int ninstr = s_crt_nr_cycles_instr;
+
         SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
         if (ninstr > 0)
         {
             s_crt_nr_cycles_instr = 0;
             _save_crt_qemu_instance->systemc.systemc_qemu_consume_instruction_cycles (
-                _save_cpu_single_env->qemu.sc_obj, ninstr,
-                &_save_cpu_single_env->qemu.ns_in_cpu_exec);
+                _save_cpu_single_env->qemu.sc_obj, ninstr);
 
         }
 
         unsigned long addr_in_mem_dev;
         addr_in_mem_dev = _save_crt_qemu_instance->systemc.systemc_qemu_read_memory (
             _save_cpu_single_env->qemu.sc_obj,
-            addr & ~DCACHE_LINE_MASK, 4,
-            &_save_cpu_single_env->qemu.ns_in_cpu_exec, 0);
+            addr & ~DCACHE_LINE_MASK, 4, 0);
         memcpy (_save_crt_qemu_instance->cpu_dcache_data[cpu][idx], (void *) addr_in_mem_dev, DCACHE_LINE_BYTES);
 
-      RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
+        RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
     }
 
     #ifdef GDB_ENABLED
@@ -1743,17 +1781,18 @@ write_access (unsigned long addr, int nb, unsigned long val)
     int                 idx = tag & (DCACHE_LINES - 1);
 
     int ninstr = s_crt_nr_cycles_instr;
+
     SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
     if (ninstr > 0)
     {
         s_crt_nr_cycles_instr = 0;
         _save_crt_qemu_instance->systemc.systemc_qemu_consume_instruction_cycles (
-            _save_cpu_single_env->qemu.sc_obj, ninstr,
-            &_save_cpu_single_env->qemu.ns_in_cpu_exec);
+            _save_cpu_single_env->qemu.sc_obj, ninstr);
     }
 
     #ifdef GDB_ENABLED
     RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
+
     {
     int                 i, nb = g_gdb_state.watchpoints.nb;
     struct watch_el_t   *pwatch = g_gdb_state.watchpoints.watch;
@@ -1767,6 +1806,7 @@ write_access (unsigned long addr, int nb, unsigned long val)
             break;
         }
     }
+
     SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
     #endif
 
@@ -1793,8 +1833,7 @@ write_access (unsigned long addr, int nb, unsigned long val)
     }
 
     _save_crt_qemu_instance->systemc.systemc_qemu_write_memory (
-        _save_cpu_single_env->qemu.sc_obj, addr,
-        val, nb, &_save_cpu_single_env->qemu.ns_in_cpu_exec, 0);
+        _save_cpu_single_env->qemu.sc_obj, addr, val, nb, 0);
 
     RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
 }
@@ -1820,20 +1859,19 @@ instruction_cache_access (unsigned long addr)
         crt_qemu_instance->cpu_icache[cpu][idx] = tag;
 
         int ninstr = s_crt_nr_cycles_instr;
+
         SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
         if (ninstr > 0)
         {
             s_crt_nr_cycles_instr = 0;
             _save_crt_qemu_instance->systemc.systemc_qemu_consume_instruction_cycles (
-                _save_cpu_single_env->qemu.sc_obj, ninstr,
-                &_save_cpu_single_env->qemu.ns_in_cpu_exec);
+                _save_cpu_single_env->qemu.sc_obj, ninstr);
         }
 
         unsigned long junk;
         junk = _save_crt_qemu_instance->systemc.systemc_qemu_read_memory (
             _save_cpu_single_env->qemu.sc_obj,
-            addr & ~ICACHE_LINE_MASK, 4,
-            &_save_cpu_single_env->qemu.ns_in_cpu_exec, 0);
+            addr & ~ICACHE_LINE_MASK, 4, 0);
 
         RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
     }
@@ -1912,13 +1950,13 @@ void gdb_verify (unsigned long addr
         return;
 
     int             ninstr = s_crt_nr_cycles_instr;
+
     SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
     if (ninstr > 0)
     {
         s_crt_nr_cycles_instr = 0;
         _save_crt_qemu_instance->systemc.systemc_qemu_consume_instruction_cycles (
-            _save_cpu_single_env->qemu.sc_obj, ninstr,
-            &_save_cpu_single_env->qemu.ns_in_cpu_exec);
+            _save_cpu_single_env->qemu.sc_obj, ninstr);
     }
     RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
 

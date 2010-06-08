@@ -59,7 +59,7 @@
 #define _ALREADY_INCLUDED_EXTERN_CACHE_ACCESS_
 
     extern unsigned long tmp_physaddr;
-    extern unsigned char b_in_translation;
+    extern unsigned char b_use_backdoor;
     extern uint8_t *phys_ram_base;
     extern unsigned long long g_no_write;
     extern unsigned long long g_no_uncached;
@@ -156,7 +156,7 @@ DATA_TYPE REGPARM(1) glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             #endif
 
             tmp_physaddr = physaddr - (unsigned long) phys_ram_base;
-            if (!b_in_translation)
+            if (!b_use_backdoor)
             {
                 res = glue (tswap, DATA_SIZE_BITS) (
                     glue (data_cache_access, SUFFIX) ());
@@ -231,7 +231,7 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
         {
             /* unaligned/aligned access in the same page */
             tmp_physaddr = physaddr - (unsigned long) phys_ram_base;
-            if (!b_in_translation)
+            if (!b_use_backdoor)
             {
                 res = glue (tswap, DATA_SIZE_BITS) (
                     glue (data_cache_access, SUFFIX) ());
@@ -338,12 +338,9 @@ void REGPARM(2) glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             }
             #endif
 
-            if (!b_in_translation)
-            {
-                glue (write_access, SUFFIX) (
-                    physaddr - (unsigned long) phys_ram_base,
-                    glue (tswap, DATA_SIZE_BITS) (val));
-            }
+            glue (write_access, SUFFIX) (
+                physaddr - (unsigned long) phys_ram_base,
+                glue (tswap, DATA_SIZE_BITS) (val));
         }
     }
     else
@@ -404,12 +401,9 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
         else
         {
             /* aligned/unaligned access in the same page */
-            if (!b_in_translation)
-            {
-                glue (write_access,	SUFFIX) (
-                    physaddr - (unsigned long) phys_ram_base,
-                    glue (tswap, DATA_SIZE_BITS) (val));
-            }
+            glue (write_access,	SUFFIX) (
+                physaddr - (unsigned long) phys_ram_base,
+                glue (tswap, DATA_SIZE_BITS) (val));
         }
     }
     else

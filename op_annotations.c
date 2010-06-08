@@ -1,8 +1,8 @@
 void OPPROTO
 op_start_tb (void)
 {
-  extern void tb_start ();
-  tb_start ();
+  extern void tb_start (unsigned long tb_addr);
+  tb_start (PARAM1);
 }
 
 #ifdef LOG_PC

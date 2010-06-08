@@ -517,8 +517,8 @@ gen-op.h: op.o $(DYNGEN)
 	$(SHOW_CMD)$(DYNGEN) -g -o $@ $<
 
 op.o: op.c
-	@echo "Compiling $(notdir $<) ..." OP_CFLAGS = $(OP_CFLAGS)
-	$(SHOW_CMD)$(CC) $(OP_CFLAGS) $(CPPFLAGS) -c -o $@ $<
+	@echo "Compiling $(notdir $<) ..."
+	@$(SHOW_CMD)$(CC) $(OP_CFLAGS) $(CPPFLAGS) -c -o $@ $<
 
 # HELPER_CFLAGS is used for all the code compiled with static register
 # variables

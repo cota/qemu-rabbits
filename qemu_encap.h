@@ -29,10 +29,10 @@ typedef struct
     int                     nb_tbs;
     unsigned char           *phys_ram_dirty;
     int                     ram_size;
-    int                     tb_invalidated_flag;
     void                    *tb_phys_hash;
     void                    *tbs;
     unsigned long           init_point_1;
+    unsigned long           flush_head;
 
     //log
     FILE                    *fim;

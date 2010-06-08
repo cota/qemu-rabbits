@@ -281,6 +281,8 @@ void tlb_fill (target_ulong addr, int is_write, int mmu_idx, void *retaddr)
     CPUState *saved_env;
     unsigned long pc;
     int ret;
+    unsigned char   save_b_use_backdoor = b_use_backdoor;
+    b_use_backdoor = 1;
 
     /* XXX: hack to restore env in all cases, even if not called from
        generated code */
@@ -298,8 +300,10 @@ void tlb_fill (target_ulong addr, int is_write, int mmu_idx, void *retaddr)
                 cpu_restore_state(tb, env, pc, NULL);
             }
         }
+        b_use_backdoor = save_b_use_backdoor;
         raise_exception(env->exception_index);
     }
     env = saved_env;
+    b_use_backdoor = save_b_use_backdoor;
 }
 #endif

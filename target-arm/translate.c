@@ -7650,7 +7650,7 @@ static inline int gen_intermediate_code_internal(CPUState *env,
       gen_op_set_condexec(0);
 
     //§§mari
-    gen_op_start_tb ();
+    gen_op_start_tb ((unsigned long) tb);
     b_first_instruction_in_tb = 1;
 
     do

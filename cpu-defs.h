@@ -160,10 +160,12 @@ typedef struct CPUTLBEntry {
     {                                                                   \
         void                        *sc_obj;                            \
         unsigned long               fv_percent;                         \
-        unsigned long               ns_in_cpu_exec;                     \
         qemu_instance               *qemu_instance;                     \
         int                         gdb_cpu_index;                      \
     } qemu;                                                             \
-    target_ulong gdb_pc;       /* program counter */
+    struct TranslationBlock         *flush_last_tb;                     \
+    int                             need_flush;                         \
+    target_ulong                    gdb_pc;       /* program counter */ \
+    int                             tb_invalidated_flag;
 
 #endif

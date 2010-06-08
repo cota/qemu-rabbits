@@ -271,7 +271,6 @@ long
 qemu_cpu_loop (CPUState *penv)
 {
     crt_qemu_instance = penv->qemu.qemu_instance;
-    tb_invalidated_flag = crt_qemu_instance->tb_invalidated_flag;
 
     int             ret = cpu_exec (penv);
     unsigned long   ninstr = s_crt_nr_cycles_instr;
@@ -279,10 +278,9 @@ qemu_cpu_loop (CPUState *penv)
     if (ninstr)
     {
         s_crt_nr_cycles_instr = 0;
-        crt_qemu_instance->systemc.systemc_qemu_consume_instruction_cycles
-            (penv->qemu.sc_obj, ninstr, &penv->qemu.ns_in_cpu_exec);
+        crt_qemu_instance->systemc.systemc_qemu_consume_instruction_cycles (
+            penv->qemu.sc_obj, ninstr);
     }
-	penv->qemu.qemu_instance->tb_invalidated_flag = tb_invalidated_flag;
 	crt_qemu_instance = NULL;
 
   return ret;

@@ -8,14 +8,12 @@ extern "C"
 
 typedef void            (*systemc_qemu_wakeup_fc_t) (void *sc_obj);
 typedef void            (*systemc_qemu_consume_instruction_cycles_fc_t) (
-                            void *sc_obj, int ninst, unsigned long *ns);
+                            void *sc_obj, int ninst);
 typedef unsigned long   (*systemc_qemu_read_memory_fc_t) (void *sc_obj,
-                            unsigned long address, unsigned char nbytes, 
-                            unsigned long *ns, int bIO);
+                            unsigned long address, unsigned char nbytes, int bIO);
 typedef void            (*systemc_qemu_write_memory_fc_t) (void *sc_obj, 
                             unsigned long address, unsigned long data,
-                            unsigned char nbytes, unsigned long *ns, 
-                            int bIO);
+                            unsigned char nbytes, int bIO);
 typedef unsigned long long  (*systemc_qemu_get_time_fc_t) (void);
 typedef unsigned char   *(*systemc_get_mem_addr_fc_t) (void *sc_obj,
                             unsigned long addr);

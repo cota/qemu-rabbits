@@ -363,22 +363,44 @@ static void page_flush_tb(void)
 /* XXX: tb_flush is currently not thread safe */
 void tb_flush(CPUState *env1)
 {
-    CPUState *env;
-#if defined(DEBUG_FLUSH)
+    CPUState        *env;
+    #if defined(DEBUG_FLUSH)
     printf("qemu: flush code_size=%ld nb_tbs=%d avg_tb_size=%ld\n",
            (unsigned long)(code_gen_ptr - code_gen_buffer),
 		       crt_qemu_instance->nb_tbs, crt_qemu_instance->nb_tbs > 0 ?
 					 ((unsigned long) (code_gen_ptr - code_gen_buffer)) / crt_qemu_instance->nb_tbs : 0);
-#endif
-    crt_qemu_instance->nb_tbs = 0;
+    #endif
 
-		for (env = (CPUState *) crt_qemu_instance->first_cpu; env != NULL; env = env->next_cpu)
-		{
+    for (env = (CPUState *) crt_qemu_instance->first_cpu; env != NULL; env = env->next_cpu)
+    {
+        if (env->flush_last_tb)
+        {
+            cpu_interrupt (env, CPU_INTERRUPT_EXIT);
+
+            struct TranslationBlock *tb = env->flush_last_tb;
+            if (env->need_flush == 0)
+            {
+                env->need_flush = 1;
+                tb->flush_cnt++;
+                if (tb->flush_cnt == 1)
+                {
+                    //order the TBs in the list by tc_ptr
+                    struct TranslationBlock **ptb;
+                    ptb = (struct TranslationBlock **) &crt_qemu_instance->flush_head;
+                    while (*ptb && tb->tc_ptr > (*ptb)->tc_ptr)
+                        ptb = & (*ptb)->flush_next;
+                    tb->flush_next = *ptb;
+                    *ptb = tb;
+                }
+            }
+        }
+
         memset (env->tb_jmp_cache, 0, TB_JMP_CACHE_SIZE * sizeof (void *));
     }
 
+    crt_qemu_instance->nb_tbs = 0;
     memset (macro_tb_phys_hash, 0, CODE_GEN_PHYS_HASH_SIZE * sizeof (void *));
-    page_flush_tb();
+    page_flush_tb ();
 
     code_gen_ptr = code_gen_buffer;
     /* XXX: flush processor icache at this point if cache flush is
@@ -449,6 +471,7 @@ static inline void tb_remove(TranslationBlock **ptb, TranslationBlock *tb,
                              int next_offset)
 {
     TranslationBlock *tb1;
+
     for(;;) {
         tb1 = *ptb;
         if (tb1 == tb) {
@@ -537,7 +560,7 @@ static inline void tb_phys_invalidate(TranslationBlock *tb, unsigned int page_ad
         invalidate_page_bitmap(p);
     }
 
-    tb_invalidated_flag = 1;
+    cpu_single_env->tb_invalidated_flag = 1;
 
     /* remove the TB from the hash list */
     h = tb_jmp_cache_hash_func(tb->pc);
@@ -676,9 +699,15 @@ void tb_invalidate_phys_page_range(target_ulong start, target_ulong end,
     target_ulong tb_start, tb_end;
     target_ulong current_pc, current_cs_base;
 
+    unsigned char save_b_use_backdoor = b_use_backdoor;
+    b_use_backdoor = 1;
+
     p = page_find(start >> TARGET_PAGE_BITS);
     if (!p)
+    {
+        b_use_backdoor = save_b_use_backdoor;
         return;
+    }
     if (!p->code_bitmap &&
         ++p->code_write_count >= SMC_BITMAP_USE_THRESHOLD &&
         is_cpu_write_access) {
@@ -776,6 +805,7 @@ void tb_invalidate_phys_page_range(target_ulong start, target_ulong end,
         cpu_resume_from_signal(env, NULL);
     }
 #endif
+    b_use_backdoor = save_b_use_backdoor;
 }
 
 /* len must be <= 8 and start must be a multiple of len */
@@ -937,12 +967,43 @@ TranslationBlock *tb_alloc(target_ulong pc)
 {
     TranslationBlock *tb;
 
-    if (crt_qemu_instance->nb_tbs >= CODE_GEN_MAX_BLOCKS ||
-        (code_gen_ptr - code_gen_buffer) >= CODE_GEN_BUFFER_MAX_SIZE)
+//    if (crt_qemu_instance->nb_tbs >= CODE_GEN_MAX_BLOCKS ||
+//        (code_gen_ptr - code_gen_buffer) >= CODE_GEN_BUFFER_MAX_SIZE)
+//        return NULL;
+
+    int         i = crt_qemu_instance->nb_tbs;
+    while (i < CODE_GEN_MAX_BLOCKS && macro_tbs[i].flush_cnt)
+        i++;
+    if (i >= CODE_GEN_MAX_BLOCKS)
         return NULL;
-    tb = &macro_tbs[crt_qemu_instance->nb_tbs++];
+    crt_qemu_instance->nb_tbs = i + 1;
+
+    tb = (TranslationBlock *) crt_qemu_instance->flush_head;
+    while ((code_gen_ptr - code_gen_buffer) < CODE_GEN_BUFFER_MAX_SIZE)
+    {
+        while (tb &&
+            ((code_gen_ptr + 2048 < tb->tc_ptr) || (code_gen_ptr >= tb->flush_tc_end)))
+            tb = tb->flush_next;
+
+        if (tb == NULL)
+            break;
+
+        code_gen_ptr = tb->flush_tc_end;
+    }
+    if ((code_gen_ptr - code_gen_buffer) >= CODE_GEN_BUFFER_MAX_SIZE)
+        return NULL;
+
+    tb = &macro_tbs[i];
     tb->pc = pc;
     tb->cflags = 0;
+
+    if (tb->flush_cnt != 0)
+    {
+        printf ("%s: allocation of a TB with flush_cnt != 0!\n", __FUNCTION__);
+        exit (1);
+    }
+    tb->flush_next = NULL;
+
     return tb;
 }
 
@@ -1050,7 +1111,7 @@ static inline void tb_reset_jump_recursive2(TranslationBlock *tb, int n)
         tb_reset_jump(tb, n);
 
         /* suppress jumps in the tb on which we could have jumped */
-        tb_reset_jump_recursive(tb_next);
+        //tb_reset_jump_recursive(tb_next);
     }
 }
 
@@ -1215,7 +1276,7 @@ void cpu_set_log_filename(const char *filename)
 }
 
 /* mask must never be zero, except for A20 change call */
-void cpu_interrupt(CPUState *env, int mask)
+void cpu_interrupt (CPUState *env, int mask)
 {
     TranslationBlock *tb;
     /* static int interrupt_lock; */
@@ -1224,11 +1285,15 @@ void cpu_interrupt(CPUState *env, int mask)
     /* if the cpu is currently executing code, we must unlink it and
        all the potentially executing TB */
     tb = env->current_tb;
-    if (tb /*&& !testandset (&interrupt_lock)*/) {
+    if (tb)
+    {
         env->current_tb = NULL;
-        tb_reset_jump_recursive(tb);
-        /* interrupt_lock = 0; */
-		}
+        tb_reset_jump_recursive(env->flush_last_tb);
+    }
+    else
+    {
+
+    }
 }
 
 void cpu_reset_interrupt(CPUState *env, int mask)
