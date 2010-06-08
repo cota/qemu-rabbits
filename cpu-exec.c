@@ -1455,6 +1455,7 @@ qemu_systemc_write_all (void *opaque, target_phys_addr_t offset, uint32_t value,
 
 void just_synchronize (void)
 {
+    #ifdef IMPLEMENT_CACHES
     SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
     int ninstr = s_crt_nr_cycles_instr;
     if (ninstr)
@@ -1464,13 +1465,16 @@ void just_synchronize (void)
             _save_cpu_single_env->qemu.sc_obj, ninstr);
     }
     RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
+    #endif
 }
 
 void call_wait_wb_empty ()
 {
+    #ifdef IMPLEMENT_CACHES
     SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
     _save_crt_qemu_instance->systemc.wait_wb_empty (_save_cpu_single_env->qemu.sc_obj);
     RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
+    #endif
 }
 
 static uint32_t
@@ -1554,7 +1558,6 @@ tb_start (TranslationBlock *tb)
     cpu_single_env->flush_last_tb = tb;
 
     if (s_crt_nr_cycles_instr > 10000)
-
     {
         b_use_backdoor = 1;
         cpu_interrupt (cpu_single_env, CPU_INTERRUPT_EXIT);
@@ -1657,13 +1660,18 @@ unsigned long get_phys_addr_gdb (unsigned long addr)
 
 
 extern unsigned long tmp_physaddr;
-#ifdef LOG_PC
+#ifdef LOG_INFO_FOR_DEBUG
 void log_data_cache (unsigned long addr_miss);
 #endif
 
 inline void *
 data_cache_access ()
 {
+    #ifndef IMPLEMENT_CACHES
+        return crt_qemu_instance->systemc.systemc_get_mem_addr (
+                cpu_single_env->qemu.sc_obj, tmp_physaddr);
+    #endif
+
     int cpu, idx;
     unsigned long addr, tag;
 
@@ -1681,7 +1689,7 @@ data_cache_access ()
         g_no_dcache_miss++;
         crt_qemu_instance->cpu_dcache[cpu][idx] = tag;
 
-        #ifdef LOG_PC
+        #ifdef LOG_INFO_FOR_DEBUG
         log_data_cache (addr);
         #endif
 
@@ -1774,6 +1782,27 @@ write_access (unsigned long addr, int nb, unsigned long val)
         printf ("wrong nb in %s\n", __FUNCTION__);
 
     g_no_write++;
+
+    #ifndef IMPLEMENT_CACHES
+    void   *host_addr = crt_qemu_instance->systemc.systemc_get_mem_addr (
+                cpu_single_env->qemu.sc_obj, addr);
+    switch (nb)
+    {
+    case 1:
+        *((unsigned char *) host_addr) = (unsigned char) (val & 0x000000FF);
+    break;
+    case 2:
+        *((unsigned short *) host_addr) = (unsigned short) (val & 0x0000FFFF);
+    break;
+    case 4:
+        *((unsigned long *) host_addr) = (unsigned long) (val & 0xFFFFFFFF);
+    break;
+    default:
+        printf ("QEMU, function %s, invalid nb %d\n", __FUNCTION__, nb);
+        exit (1);
+    }
+    return;
+    #endif
 
     int                 cpu = cpu_single_env->cpu_index;
     unsigned long       tag = addr >> DCACHE_LINE_BITS;

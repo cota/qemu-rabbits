@@ -1152,7 +1152,7 @@ static void disas_sparc_insn(DisasContext * dc)
     insn = ldl_code(dc->pc);
 
     //§§mari
-    #ifdef LOG_PC
+    #ifdef LOG_INFO_FOR_DEBUG
     gen_op_log_pc (tmp_physaddr);
     #endif
     #ifdef GDB_ENABLED
@@ -1164,7 +1164,10 @@ static void disas_sparc_insn(DisasContext * dc)
     if (((tmp_physaddr & ((1 << ICACHE_LINE_BITS) - 1)) == 0) || b_first_instruction_in_tb)
     {
         b_first_instruction_in_tb = 0;
+
+        #ifdef IMPLEMENT_CACHES
         gen_op_verify_instruction_cache (tmp_physaddr);
+        #endif
     }
     last_decoded_pc_addr = tmp_physaddr;
 
@@ -3703,7 +3706,7 @@ static inline int gen_intermediate_code_internal(TranslationBlock * tb,
         //§§mari
         gen_op_inc_crt_nr_cycles_instr (NORMAL_INSTRUCTION_CYCLE_COST);
 
-        #ifdef COUNT_INSTR_FOR_DEBUG
+        #ifdef COUNT_INSTR_FOR_STATISTICS
         gen_op_inc_crt_nr_instr ();
         #endif
         #ifdef WRITE_PC_FOR_DEBUG

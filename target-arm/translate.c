@@ -2474,7 +2474,10 @@ static inline void gen_jmp (DisasContext *s, uint32_t dest)
     }
     else
     {
+        #ifdef IMPLEMENT_CACHES
         gen_op_verify_instruction_cache_n (last_decoded_pc_addr + 4, JUMP_EXTRA_LOADED_INSTRUCTIONS);
+        #endif
+
         #if JUMP_CYCLE_COST != 0
         gen_op_inc_crt_nr_cycles_instr (JUMP_CYCLE_COST);
         #endif
@@ -4673,7 +4676,7 @@ static void disas_arm_insn (CPUState * env, DisasContext *s)
     insn = ldl_code(s->pc);
 
     //§§mari
-    #ifdef LOG_PC
+    #ifdef LOG_INFO_FOR_DEBUG
     gen_op_log_pc (tmp_physaddr);
     #endif
     #ifdef GDB_ENABLED
@@ -4682,7 +4685,10 @@ static void disas_arm_insn (CPUState * env, DisasContext *s)
     if (((tmp_physaddr & ((1 << ICACHE_LINE_BITS) - 1)) == 0) || b_first_instruction_in_tb)
     {
         b_first_instruction_in_tb = 0;
+
+        #ifdef IMPLEMENT_CACHES
         gen_op_verify_instruction_cache (tmp_physaddr);
+        #endif
     }
     last_decoded_pc_addr = tmp_physaddr;
 
@@ -7658,7 +7664,7 @@ static inline int gen_intermediate_code_internal(CPUState *env,
         //§§mari
         gen_op_inc_crt_nr_cycles_instr (NORMAL_INSTRUCTION_CYCLE_COST);
 
-        #ifdef COUNT_INSTR_FOR_DEBUG
+        #ifdef COUNT_INSTR_FOR_STATISTICS
         gen_op_inc_crt_nr_instr ();
         #endif
         #ifdef WRITE_PC_FOR_DEBUG
@@ -7776,7 +7782,10 @@ static inline int gen_intermediate_code_internal(CPUState *env,
         case DISAS_JUMP:
         case DISAS_UPDATE:
             /* indicate that the hash table must be used to find the next TB */
+
+            #ifdef IMPLEMENT_CACHES
             gen_op_verify_instruction_cache_n (last_decoded_pc_addr + 4, JUMP_EXTRA_LOADED_INSTRUCTIONS);
+            #endif
 
             #if JUMP_CYCLE_COST != 0
             gen_op_inc_crt_nr_cycles_instr (JUMP_CYCLE_COST);
@@ -7791,7 +7800,9 @@ static inline int gen_intermediate_code_internal(CPUState *env,
             /* nothing more to generate */
             break;
         case DISAS_WFI:
+            #ifdef IMPLEMENT_CACHES
             gen_op_verify_instruction_cache_n (last_decoded_pc_addr + 4, JUMP_EXTRA_LOADED_INSTRUCTIONS);
+            #endif
 
             #if JUMP_CYCLE_COST != 0
                 gen_op_inc_crt_nr_cycles_instr (JUMP_CYCLE_COST);
@@ -7800,7 +7811,9 @@ static inline int gen_intermediate_code_internal(CPUState *env,
             gen_op_wfi();
             break;
         case DISAS_SWI:
+            #ifdef IMPLEMENT_CACHES
             gen_op_verify_instruction_cache_n (last_decoded_pc_addr + 4, JUMP_EXTRA_LOADED_INSTRUCTIONS);
+            #endif
 
             #if JUMP_CYCLE_COST != 0
                 gen_op_inc_crt_nr_cycles_instr (JUMP_CYCLE_COST);

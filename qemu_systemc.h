@@ -1,11 +1,14 @@
 #ifndef _QEMU_SYSTEMC_H_
 #define _QEMU_SYSTEMC_H_
 
-#define COUNT_INSTR_FOR_DEBUG
+//#define IMPLEMENT_CACHES
 
-//#define LOG_PC
+//#define GDB_ENABLED
+
+//#define COUNT_INSTR_FOR_STATISTICS
+
+//#define LOG_INFO_FOR_DEBUG
 //#define WRITE_PC_FOR_DEBUG
-#define GDB_ENABLED
 
 #define CYCLES_LATENCY_CACHE            2
 #define CYCLES_LATENCY_CACHE_MISS       28

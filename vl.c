@@ -434,10 +434,6 @@ log_pc (unsigned long addr)
 
     unsigned long       soft_thread = 
         crt_qemu_instance->systemc.systemc_qemu_get_crt_thread (cpu_single_env->qemu.sc_obj);
-
-//    if ((addr == 0x54 && crt_cycle == 70707 /*&& soft_thread == 0*/)
-//       )
-//        crt_qemu_instance->log_cnt_instr++;
   
     if (crt_qemu_instance->fim == NULL)
     {
@@ -446,8 +442,6 @@ log_pc (unsigned long addr)
         crt_qemu_instance->fim = fopen (buf, "w");
     }
 
-//    return;
-//    if (((unsigned int)cpu_single_env->regbase[cpu_single_env->cwp*16+6] & 0xFFFF8000) == 0x10e0000)
     fprintf (crt_qemu_instance->fim, "%x\t%lu\t%d\tth=%lx"
         #if TARGET_SPARC
         "\tcwp=%lu,wim=%lu,w3.O0=%x,w3.l3=%x,sp=%x,spb=%x\n"

@@ -1276,7 +1276,7 @@ void cpu_set_log_filename(const char *filename)
 }
 
 /* mask must never be zero, except for A20 change call */
-void cpu_interrupt (CPUState *env, int mask)
+void cpu_interrupt(CPUState *env, int mask)
 {
     TranslationBlock *tb;
     /* static int interrupt_lock; */
@@ -1289,10 +1289,6 @@ void cpu_interrupt (CPUState *env, int mask)
     {
         env->current_tb = NULL;
         tb_reset_jump_recursive(env->flush_last_tb);
-    }
-    else
-    {
-
     }
 }
 

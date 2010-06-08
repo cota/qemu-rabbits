@@ -5,7 +5,7 @@ op_start_tb (void)
   tb_start (PARAM1);
 }
 
-#ifdef LOG_PC
+#ifdef LOG_INFO_FOR_DEBUG
 void OPPROTO
 op_log_pc (void)
 {
@@ -28,6 +28,7 @@ op_gdb_verify (void)
 }
 #endif
 
+#ifdef IMPLEMENT_CACHES
 void OPPROTO
 op_verify_instruction_cache (void)
 {
@@ -41,6 +42,7 @@ op_verify_instruction_cache_n (void)
   extern void instruction_cache_access_n (unsigned long addr, int n);
   instruction_cache_access_n (PARAM1, PARAM2);
 }
+#endif
 
 void OPPROTO
 op_inc_crt_nr_cycles_instr(void)
@@ -49,7 +51,7 @@ op_inc_crt_nr_cycles_instr(void)
   s_crt_nr_cycles_instr += PARAM1;
 }
 
-#ifdef COUNT_INSTR_FOR_DEBUG
+#ifdef COUNT_INSTR_FOR_STATISTICS
 void OPPROTO
 op_inc_crt_nr_instr (void)
 {
