@@ -1557,7 +1557,7 @@ tb_start (TranslationBlock *tb)
 {
     cpu_single_env->flush_last_tb = tb;
 
-    if (s_crt_nr_cycles_instr > 10000)
+    if (s_crt_nr_cycles_instr > 2000)
     {
         b_use_backdoor = 1;
         cpu_interrupt (cpu_single_env, CPU_INTERRUPT_EXIT);

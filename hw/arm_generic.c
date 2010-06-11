@@ -80,5 +80,5 @@ arm_generic_machine_init (int ram_size, const char *cpu_model)
 
     /* RAM shoud repeat to fill physical memory space, SDRAM at address zero.  */
     cpu_register_physical_memory (0, ram_size, IO_MEM_RAM);
-    cpu_register_physical_memory (0x85000000, 0x1000, 0x85000000);
+    cpu_register_physical_memory (0x85000000, 0x1000, ram_size + IO_MEM_RAM);
 }

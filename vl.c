@@ -274,12 +274,15 @@ qemu_cpu_loop (CPUState *penv)
 
     int             ret = cpu_exec (penv);
     unsigned long   ninstr = s_crt_nr_cycles_instr;
+    int             old_halted = penv->halted;
 
     if (ninstr)
     {
         s_crt_nr_cycles_instr = 0;
         crt_qemu_instance->systemc.systemc_qemu_consume_instruction_cycles (
             penv->qemu.sc_obj, ninstr);
+        if (old_halted && !penv->halted)
+            ret = EXCP_INTERRUPT;
     }
 	crt_qemu_instance = NULL;
 

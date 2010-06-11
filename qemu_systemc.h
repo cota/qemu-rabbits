@@ -3,7 +3,7 @@
 
 //#define IMPLEMENT_CACHES
 
-//#define GDB_ENABLED
+#define GDB_ENABLED
 
 //#define COUNT_INSTR_FOR_STATISTICS
 

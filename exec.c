@@ -373,7 +373,7 @@ void tb_flush(CPUState *env1)
 
     for (env = (CPUState *) crt_qemu_instance->first_cpu; env != NULL; env = env->next_cpu)
     {
-        if (env->flush_last_tb)
+        if (cpu_single_env != env && env->current_tb)
         {
             cpu_interrupt (env, CPU_INTERRUPT_EXIT);
 
@@ -2500,8 +2500,10 @@ static void io_mem_init(void)
                                           watch_mem_write, NULL);
 #endif
     /* alloc dirty bits array */
-    crt_qemu_instance->phys_ram_dirty = qemu_vmalloc (crt_qemu_instance->ram_size >> TARGET_PAGE_BITS);
-    memset (crt_qemu_instance->phys_ram_dirty, 0xff, crt_qemu_instance->ram_size >> TARGET_PAGE_BITS);
+    crt_qemu_instance->phys_ram_dirty = qemu_vmalloc (
+        (crt_qemu_instance->ram_size  + 0x10000) >> TARGET_PAGE_BITS);
+    memset (crt_qemu_instance->phys_ram_dirty, 0xff, 
+        (crt_qemu_instance->ram_size  + 0x10000) >> TARGET_PAGE_BITS);
 }
 
 /* mem_read and mem_write are arrays of functions containing the
