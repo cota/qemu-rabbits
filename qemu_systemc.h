@@ -1,9 +1,7 @@
 #ifndef _QEMU_SYSTEMC_H_
 #define _QEMU_SYSTEMC_H_
 
-//#define IMPLEMENT_CACHES
-
-#define GDB_ENABLED
+#include <cfg.h>
 
 //#define COUNT_INSTR_FOR_STATISTICS
 
