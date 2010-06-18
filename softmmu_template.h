@@ -155,6 +155,9 @@ DATA_TYPE REGPARM(1) glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             }
             #endif
 
+            #ifdef ONE_MEM_MODULE
+            res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(long)physaddr + env->sc_mem_host_addr);
+            #else
             tmp_physaddr = physaddr - (unsigned long) phys_ram_base;
             if (!b_use_backdoor)
             {
@@ -167,6 +170,7 @@ DATA_TYPE REGPARM(1) glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
                     crt_qemu_instance->systemc.systemc_get_mem_addr (
                     env->qemu.sc_obj, tmp_physaddr));
             }
+            #endif
         }
     }
     else
@@ -229,6 +233,9 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
         }
         else
         {
+            #ifdef ONE_MEM_MODULE
+            res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(long)physaddr + env->sc_mem_host_addr);
+            #else
             /* unaligned/aligned access in the same page */
             tmp_physaddr = physaddr - (unsigned long) phys_ram_base;
             if (!b_use_backdoor)
@@ -242,6 +249,7 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
                     crt_qemu_instance->systemc.systemc_get_mem_addr (
                     env->qemu.sc_obj, tmp_physaddr));
             }
+            #endif
         }
     }
     else
@@ -338,9 +346,13 @@ void REGPARM(2) glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             }
             #endif
 
+            #ifdef ONE_MEM_MODULE
+            glue(glue(st, SUFFIX), _raw)((uint8_t *)(long)physaddr + env->sc_mem_host_addr, val);
+            #else
             glue (write_access, SUFFIX) (
                 physaddr - (unsigned long) phys_ram_base,
                 glue (tswap, DATA_SIZE_BITS) (val));
+            #endif
         }
     }
     else
@@ -401,9 +413,14 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
         else
         {
             /* aligned/unaligned access in the same page */
+
+            #ifdef ONE_MEM_MODULE
+            glue(glue(st, SUFFIX), _raw)((uint8_t *)(long)physaddr + env->sc_mem_host_addr, val);
+            #else
             glue (write_access,	SUFFIX) (
                 physaddr - (unsigned long) phys_ram_base,
                 glue (tswap, DATA_SIZE_BITS) (val));
+            #endif
         }
     }
     else

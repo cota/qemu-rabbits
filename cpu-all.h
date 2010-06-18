@@ -379,7 +379,8 @@ static inline void stl_le_p(void *ptr, int v)
 
 static inline void stq_le_p(void *ptr, uint64_t v)
 {
-    *(uint64_t *)ptr = v;
+    volatile uint64_t   t = v;
+    *(uint64_t *) ptr = t;
 }
 
 /* float access */

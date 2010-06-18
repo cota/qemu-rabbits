@@ -58,6 +58,7 @@ sigabrt_h (int x)
 void
 sigint_h (int x)
 {
+    printf ("sigint_h\n");
     if (g_gdb_state.running_state == STATE_DETACH)
         exit (2);
     g_gdb_state.running_state = STATE_STEP;
@@ -307,6 +308,9 @@ qemu_get_set_cpu_obj (qemu_instance *instance, unsigned long index, void *sc_obj
 
     crt_qemu_instance = save_instance;
 
+    penv->sc_mem_host_addr = (unsigned long)
+        crt_qemu_instance->systemc.systemc_get_mem_addr (penv->qemu.sc_obj, 0);
+
     return penv;
 }
 
@@ -370,9 +374,7 @@ glue(TARGET_ARCH_, _qemu_init) (int id, int ncpu, int indexfirstcpu,
     signal (SIGSEGV, sigsegv_h);
     signal (SIGABRT, sigabrt_h);
 
-    #ifdef GDB_ENABLED
     signal (SIGINT, sigint_h);
-    #endif
 
     //fill the systemc function address table
     qi->qemu_add_map = (qemu_add_map_fc_t) qemu_add_map;

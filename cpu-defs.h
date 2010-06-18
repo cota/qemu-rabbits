@@ -166,6 +166,7 @@ typedef struct CPUTLBEntry {
     struct TranslationBlock         *flush_last_tb;                     \
     int                             need_flush;                         \
     target_ulong                    gdb_pc;       /* program counter */ \
+    unsigned long                   sc_mem_host_addr;                   \
     int                             tb_invalidated_flag;
 
 #endif

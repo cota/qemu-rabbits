@@ -20,6 +20,8 @@
 
 #include <qemu_systemc.h>
 #include <qemu_encap.h>
+#include "cfg.h"
+
 void printf_fulul (unsigned long, unsigned long, unsigned long,
 									 unsigned long);
 
@@ -277,6 +279,9 @@ static inline RES_TYPE glue(glue(ld, USUFFIX), MEMSUFFIX)(target_ulong ptr)
     {
         physaddr = addr + env->tlb_table[mmu_idx][index].addend;
 
+        #ifdef ONE_MEM_MODULE
+        res = glue(glue(ld, USUFFIX), _raw)((uint8_t *) physaddr + env->sc_mem_host_addr);
+        #else
         tmp_physaddr = physaddr - (unsigned long) phys_ram_base;
         if (!b_use_backdoor)
         {
@@ -288,6 +293,7 @@ static inline RES_TYPE glue(glue(ld, USUFFIX), MEMSUFFIX)(target_ulong ptr)
                 crt_qemu_instance->systemc.systemc_get_mem_addr (
                 env->qemu.sc_obj, tmp_physaddr));
         }
+        #endif
     }
     return res;
 }
@@ -312,6 +318,9 @@ static inline int glue(glue(lds, SUFFIX), MEMSUFFIX)(target_ulong ptr)
     {
         physaddr = addr + env->tlb_table[mmu_idx][index].addend;
 
+        #ifdef ONE_MEM_MODULE
+        res = glue(glue(lds, SUFFIX), _raw)((uint8_t *) physaddr + env->sc_mem_host_addr);
+        #else
         tmp_physaddr = physaddr - (unsigned long) phys_ram_base;
         if (!b_use_backdoor)
         {
@@ -326,6 +335,7 @@ static inline int glue(glue(lds, SUFFIX), MEMSUFFIX)(target_ulong ptr)
                 crt_qemu_instance->systemc.systemc_get_mem_addr (
                 env->qemu.sc_obj, tmp_physaddr));
         }
+        #endif
     }
     return res;
 }
@@ -354,9 +364,13 @@ static inline void glue(glue(st, SUFFIX), MEMSUFFIX)(target_ulong ptr, RES_TYPE 
     {
         physaddr = addr + env->tlb_table[mmu_idx][index].addend;
 
+        #ifdef ONE_MEM_MODULE
+        glue(glue(st, SUFFIX), _raw)((uint8_t *)physaddr + env->sc_mem_host_addr, v);
+        #else
        glue (write_access,	SUFFIX) (
             physaddr - (unsigned long) phys_ram_base,
             glue (tswap, DATA_SIZE_BITS) (v));
+       #endif
     }
 }
 

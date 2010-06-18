@@ -33,6 +33,7 @@
 #include <unistd.h>
 #include <inttypes.h>
 
+#include <cfg.h>
 #include <qemu_systemc.h>
 extern void write_access (unsigned long addr, int nb, unsigned long val);
 extern void *data_cache_access ();
@@ -2178,19 +2179,27 @@ static void notdirty_mem_writeb(void *opaque, target_phys_addr_t addr, uint32_t 
     unsigned long ram_addr;
     int dirty_flags;
     ram_addr = addr - (unsigned long)phys_ram_base;
-		dirty_flags = crt_qemu_instance->phys_ram_dirty[ram_addr >> TARGET_PAGE_BITS];
-    if (!(dirty_flags & CODE_DIRTY_FLAG)) {
-#if !defined(CONFIG_USER_ONLY)
+    dirty_flags = crt_qemu_instance->phys_ram_dirty[ram_addr >> TARGET_PAGE_BITS];
+
+    #if !defined(CONFIG_USER_ONLY)
+    if (!(dirty_flags & CODE_DIRTY_FLAG))
+    {
         tb_invalidate_phys_page_fast(ram_addr, 1);
         dirty_flags = crt_qemu_instance->phys_ram_dirty[ram_addr >> TARGET_PAGE_BITS];
-#endif
     }
-		write_access (ram_addr, 1, val);
-#ifdef USE_KQEMU
+    #endif
+
+    #ifdef ONE_MEM_MODULE
+    stb_p((uint8_t *)(long)addr + cpu_single_env->sc_mem_host_addr, val);
+    #else
+    write_access (ram_addr, 1, val);
+    #endif
+
+    #ifdef USE_KQEMU
     if (cpu_single_env->kqemu_enabled &&
         (dirty_flags & KQEMU_MODIFY_PAGE_MASK) != KQEMU_MODIFY_PAGE_MASK)
         kqemu_modify_page(cpu_single_env, ram_addr);
-#endif
+    #endif
     dirty_flags |= (0xff & ~CODE_DIRTY_FLAG);
     crt_qemu_instance->phys_ram_dirty[ram_addr >> TARGET_PAGE_BITS] = dirty_flags;
     /* we remove the notdirty callback only if the code has been
@@ -2205,18 +2214,26 @@ static void notdirty_mem_writew(void *opaque, target_phys_addr_t addr, uint32_t 
     int dirty_flags;
     ram_addr = addr - (unsigned long)phys_ram_base;
     dirty_flags = crt_qemu_instance->phys_ram_dirty[ram_addr >> TARGET_PAGE_BITS];
-    if (!(dirty_flags & CODE_DIRTY_FLAG)) {
-#if !defined(CONFIG_USER_ONLY)
+
+    #if !defined(CONFIG_USER_ONLY)
+    if (!(dirty_flags & CODE_DIRTY_FLAG))
+    {
         tb_invalidate_phys_page_fast(ram_addr, 2);
         dirty_flags = crt_qemu_instance->phys_ram_dirty[ram_addr >> TARGET_PAGE_BITS];
-#endif
     }
-		write_access (ram_addr, 2, val);
-#ifdef USE_KQEMU
+    #endif
+
+    #ifdef ONE_MEM_MODULE
+    stw_p((uint8_t *)(long)addr + cpu_single_env->sc_mem_host_addr, val);
+    #else
+    write_access (ram_addr, 2, val);
+    #endif
+
+    #ifdef USE_KQEMU
     if (cpu_single_env->kqemu_enabled &&
         (dirty_flags & KQEMU_MODIFY_PAGE_MASK) != KQEMU_MODIFY_PAGE_MASK)
         kqemu_modify_page(cpu_single_env, ram_addr);
-#endif
+    #endif
     dirty_flags |= (0xff & ~CODE_DIRTY_FLAG);
     crt_qemu_instance->phys_ram_dirty[ram_addr >> TARGET_PAGE_BITS] = dirty_flags;
     /* we remove the notdirty callback only if the code has been
@@ -2231,18 +2248,26 @@ static void notdirty_mem_writel(void *opaque, target_phys_addr_t addr, uint32_t 
     int dirty_flags;
     ram_addr = addr - (unsigned long)phys_ram_base;
     dirty_flags = crt_qemu_instance->phys_ram_dirty[ram_addr >> TARGET_PAGE_BITS];
-    if (!(dirty_flags & CODE_DIRTY_FLAG)) {
-#if !defined(CONFIG_USER_ONLY)
+    
+    #if !defined(CONFIG_USER_ONLY)
+    if (!(dirty_flags & CODE_DIRTY_FLAG))
+    {
         tb_invalidate_phys_page_fast(ram_addr, 4);
         dirty_flags = crt_qemu_instance->phys_ram_dirty[ram_addr >> TARGET_PAGE_BITS];
-#endif
     }
-		write_access (ram_addr, 4, val);
-#ifdef USE_KQEMU
+    #endif
+
+    #ifdef ONE_MEM_MODULE
+    stl_p((uint8_t *)(long)addr + cpu_single_env->sc_mem_host_addr, val);
+    #else
+    write_access (ram_addr, 4, val);
+    #endif
+
+    #ifdef USE_KQEMU
     if (cpu_single_env->kqemu_enabled &&
         (dirty_flags & KQEMU_MODIFY_PAGE_MASK) != KQEMU_MODIFY_PAGE_MASK)
         kqemu_modify_page(cpu_single_env, ram_addr);
-#endif
+    #endif
     dirty_flags |= (0xff & ~CODE_DIRTY_FLAG);
     crt_qemu_instance->phys_ram_dirty[ram_addr >> TARGET_PAGE_BITS] = dirty_flags;
     /* we remove the notdirty callback only if the code has been
@@ -2753,8 +2778,12 @@ uint32_t ldl_phys(target_phys_addr_t addr)
             (addr & ~TARGET_PAGE_MASK);
 
 				tmp_physaddr = ptr - phys_ram_base;
-				val = data_cache_accessl ();
 
+                #ifdef ONE_MEM_MODULE
+                val = ldl_p(ptr + cpu_single_env->sc_mem_host_addr);
+                #else
+				val = data_cache_accessl ();
+                #endif
     }
     return val;
 }
@@ -2791,8 +2820,12 @@ uint64_t ldq_phys(target_phys_addr_t addr)
         ptr = phys_ram_base + (pd & TARGET_PAGE_MASK) +
             (addr & ~TARGET_PAGE_MASK);
 
+                #ifdef ONE_MEM_MODULE
+                val = ldq_p(ptr + cpu_single_env->sc_mem_host_addr);
+                #else
 				tmp_physaddr = ptr - phys_ram_base;
 				val = data_cache_accessq ();
+                #endif
     }
     return val;
 }
@@ -2830,14 +2863,21 @@ void stl_phys_notdirty(target_phys_addr_t addr, uint32_t val)
         pd = p->phys_offset;
     }
 
-    if ((pd & ~TARGET_PAGE_MASK) != IO_MEM_RAM) {
+    if ((pd & ~TARGET_PAGE_MASK) != IO_MEM_RAM)
+    {
         io_index = (pd >> IO_MEM_SHIFT) & (IO_MEM_NB_ENTRIES - 1);
         macro_io_mem_write[io_index][2](macro_io_mem_opaque[io_index], addr, val);
-    } else {
+    }
+    else
+    {
         ptr = phys_ram_base + (pd & TARGET_PAGE_MASK) +
             (addr & ~TARGET_PAGE_MASK);
 
-				write_access (ptr - phys_ram_base, 4, val);
+        #ifdef ONE_MEM_MODULE
+        stl_p(ptr + cpu_single_env->sc_mem_host_addr, val);
+        #else
+        write_access (ptr - phys_ram_base, 4, val);
+        #endif
     }
 }
 
@@ -2864,11 +2904,16 @@ void stq_phys_notdirty(target_phys_addr_t addr, uint64_t val)
         macro_io_mem_write[io_index][2](macro_io_mem_opaque[io_index], addr, val);
         macro_io_mem_write[io_index][2](macro_io_mem_opaque[io_index], addr + 4, val >> 32);
 #endif
-    } else {
+    } else
+    {
         ptr = phys_ram_base + (pd & TARGET_PAGE_MASK) +
             (addr & ~TARGET_PAGE_MASK);
 
-				write_access (ptr - phys_ram_base, 8, val);
+        #ifdef ONE_MEM_MODULE
+        stq_p(ptr + cpu_single_env->sc_mem_host_addr, val);
+        #else
+        write_access (ptr - phys_ram_base, 8, val);
+        #endif
     }
 }
 
@@ -2895,8 +2940,15 @@ void stl_phys(target_phys_addr_t addr, uint32_t val)
         addr1 = (pd & TARGET_PAGE_MASK) + (addr & ~TARGET_PAGE_MASK);
         /* RAM case */
         ptr = phys_ram_base + addr1;
-				write_access (ptr - phys_ram_base, 4, val);
-        if (!cpu_physical_memory_is_dirty(addr1)) {
+
+        #ifdef ONE_MEM_MODULE
+        stl_p(ptr + cpu_single_env->sc_mem_host_addr, val);
+        #else
+        write_access (ptr - phys_ram_base, 4, val);
+        #endif
+        
+        if (!cpu_physical_memory_is_dirty(addr1))
+        {
             /* invalidate code */
             tb_invalidate_phys_page_range(addr1, addr1 + 4, 0);
             /* set dirty bit */

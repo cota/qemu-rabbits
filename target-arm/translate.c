@@ -1744,10 +1744,11 @@ static int disas_cp15_insn(CPUState *env, DisasContext *s, uint32_t insn)
         return 0;
     }
     rd = (insn >> 12) & 0xf;
-    if (insn & ARM_CP_RW_BIT) {
-#if COCPU_MRC_CYCLE_COST != 0
-      gen_op_inc_crt_nr_cycles_instr (COCPU_MRC_CYCLE_COST);
-#endif
+    if (insn & ARM_CP_RW_BIT)
+    {
+        #if COCPU_MRC_CYCLE_COST != 0
+        gen_op_inc_crt_nr_cycles_instr (COCPU_MRC_CYCLE_COST);
+        #endif
 
         gen_op_movl_T0_cp15(insn);
         /* If the destination register is r15 then sets condition codes.  */
@@ -5008,18 +5009,19 @@ static void disas_arm_insn (CPUState * env, DisasContext *s)
         case 0xa:
         case 0xc:
         case 0xe:
-#if SIGNED_MUL_CYCLE_COST != 0
-					gen_op_inc_crt_nr_cycles_instr (SIGNED_MUL_CYCLE_COST);
-#endif
+            #if SIGNED_MUL_CYCLE_COST != 0
+            gen_op_inc_crt_nr_cycles_instr (SIGNED_MUL_CYCLE_COST);
+            #endif
 
             rs = (insn >> 8) & 0xf;
             rn = (insn >> 12) & 0xf;
             rd = (insn >> 16) & 0xf;
-            if (op1 == 1) {
+            if (op1 == 1)
+            {
                 /* (32 * 16) >> 16 */
-#if MUL32_CYCLE_COST != 0
-							gen_op_inc_crt_nr_cycles_instr (MUL32_CYCLE_COST);
-#endif
+                #if MUL32_CYCLE_COST != 0
+                gen_op_inc_crt_nr_cycles_instr (MUL32_CYCLE_COST);
+                #endif
 
                 gen_movl_T0_reg(s, rm);
                 gen_movl_T1_reg(s, rs);
@@ -5033,11 +5035,12 @@ static void disas_arm_insn (CPUState * env, DisasContext *s)
                     gen_op_addl_T0_T1_setq();
                 }
                 gen_movl_reg_T0(s, rd);
-            } else {
+            } else
+            {
                 /* 16 * 16 */
-#if MUL16_CYCLE_COST != 0
-	      gen_op_inc_crt_nr_cycles_instr (MUL16_CYCLE_COST);
-#endif
+                #if MUL16_CYCLE_COST != 0
+                gen_op_inc_crt_nr_cycles_instr (MUL16_CYCLE_COST);
+                #endif
 
                 gen_movl_T0_reg(s, rm);
                 gen_movl_T1_reg(s, rs);
@@ -5085,10 +5088,11 @@ static void disas_arm_insn (CPUState * env, DisasContext *s)
             shiftop = (insn >> 5) & 3;
             if (!(insn & (1 << 4))) {
                 shift = (insn >> 7) & 0x1f;
-                if (shift != 0) {
-#if REGISTER_SHIFT_CYCLE_COST != 0
-		  gen_op_inc_crt_nr_cycles_instr (REGISTER_SHIFT_CYCLE_COST);
-#endif
+                if (shift != 0)
+                {
+                    #if REGISTER_SHIFT_CYCLE_COST != 0
+                    gen_op_inc_crt_nr_cycles_instr (REGISTER_SHIFT_CYCLE_COST);
+                    #endif
 
                     if (logic_cc) {
                         gen_shift_T1_im_cc[shiftop](shift);
@@ -5253,27 +5257,29 @@ static void disas_arm_insn (CPUState * env, DisasContext *s)
                     switch (op1) {
                     case 0: case 1: case 2: case 3: case 6:
                         /* 32 bit mul */
-#if MUL32_CYCLE_COST != 0
-		      gen_op_inc_crt_nr_cycles_instr (MUL32_CYCLE_COST);
-#endif
+                        #if MUL32_CYCLE_COST != 0
+                        gen_op_inc_crt_nr_cycles_instr (MUL32_CYCLE_COST);
+                        #endif
 
                         gen_movl_T0_reg(s, rs);
                         gen_movl_T1_reg(s, rm);
                         gen_op_mul_T0_T1();
-                        if (insn & (1 << 22)) {
+                        if (insn & (1 << 22))
+                        {
                             /* Subtract (mls) */
-#if MLS_CYCLE_COST != 0
-			  gen_op_inc_crt_nr_cycles_instr (MLS_CYCLE_COST);
-#endif
+                            #if MLS_CYCLE_COST != 0
+                            gen_op_inc_crt_nr_cycles_instr (MLS_CYCLE_COST);
+                            #endif
 
                             ARCH(6T2);
                             gen_movl_T1_reg(s, rn);
                             gen_op_rsbl_T0_T1();
-                        } else if (insn & (1 << 21)) {
+                        } else if (insn & (1 << 21))
+                        {
                             /* Add */
-#if MLA_CYCLE_COST != 0
-			  gen_op_inc_crt_nr_cycles_instr (MLA_CYCLE_COST);
-#endif
+                            #if MLA_CYCLE_COST != 0
+                            gen_op_inc_crt_nr_cycles_instr (MLA_CYCLE_COST);
+                            #endif
 
                             gen_movl_T1_reg(s, rn);
                             gen_op_addl_T0_T1();
@@ -5284,38 +5290,41 @@ static void disas_arm_insn (CPUState * env, DisasContext *s)
                         break;
                     default:
                         /* 64 bit mul */
-#if MUL64_CYCLE_COST != 0
-											gen_op_inc_crt_nr_cycles_instr (MUL64_CYCLE_COST);
-#endif
+                        #if MUL64_CYCLE_COST != 0
+                        gen_op_inc_crt_nr_cycles_instr (MUL64_CYCLE_COST);
+                        #endif
 
                         gen_movl_T0_reg(s, rs);
                         gen_movl_T1_reg(s, rm);
+
                         if (insn & (1 << 22))
-													{
-#if MLS_CYCLE_COST != 0
-														gen_op_inc_crt_nr_cycles_instr (MLS_CYCLE_COST);
-#endif
+                        {
+                            #if MLS_CYCLE_COST != 0
+                            gen_op_inc_crt_nr_cycles_instr (MLS_CYCLE_COST);
+                            #endif
 														
                             gen_op_imull_T0_T1();
-													}
+                        }
                         else
-													{
+                        {
                             gen_op_mull_T0_T1();
-													}
+                        }
+
                         if (insn & (1 << 21)) /* mult accumulate */
-													{
-#if MLA_CYCLE_COST != 0
-														gen_op_inc_crt_nr_cycles_instr (MLA_CYCLE_COST);
-#endif
+                        {
+                            #if MLA_CYCLE_COST != 0
+                            gen_op_inc_crt_nr_cycles_instr (MLA_CYCLE_COST);
+                            #endif
 
                             gen_op_addq_T0_T1(rn, rd);
 													}
-                        if (!(insn & (1 << 23))) { /* double accumulate */
+                        if (!(insn & (1 << 23)))
+                        { /* double accumulate */
                             ARCH(6);
 
-#if MLAA_CYCLE_COST != 0
-														gen_op_inc_crt_nr_cycles_instr (MLAA_CYCLE_COST);
-#endif
+                            #if MLAA_CYCLE_COST != 0
+                            gen_op_inc_crt_nr_cycles_instr (MLAA_CYCLE_COST);
+                            #endif
 
                             gen_op_addq_lo_T0_T1(rn);
                             gen_op_addq_lo_T0_T1(rd);
@@ -5346,11 +5355,12 @@ static void disas_arm_insn (CPUState * env, DisasContext *s)
                                 gen_ldst(stlex, s);
                         }
                         gen_movl_reg_T0(s, rd);
-                    } else {
+                    } else
+                    {
                         /* SWP instruction */
-#if SWP_CYCLE_COST != 0
-											gen_op_inc_crt_nr_cycles_instr (SWP_CYCLE_COST);
-#endif
+                        #if SWP_CYCLE_COST != 0
+                        gen_op_inc_crt_nr_cycles_instr (SWP_CYCLE_COST);
+                        #endif
 
                         rm = (insn) & 0xf;
 
@@ -5672,20 +5682,21 @@ static void disas_arm_insn (CPUState * env, DisasContext *s)
             i = (IS_USER(s) || (insn & 0x01200000) == 0x00200000);
             if (insn & (1 << 24))
                 gen_add_data_offset(s, insn);
-            if (insn & (1 << 20)) {
+            if (insn & (1 << 20))
+            {
                 /* load */
                 s->is_mem = 1;
 
-#if LOAD_CYCLE_COST != 0
-								gen_op_inc_crt_nr_cycles_instr (LOAD_CYCLE_COST);
-#endif
+                #if LOAD_CYCLE_COST != 0
+                gen_op_inc_crt_nr_cycles_instr (LOAD_CYCLE_COST);
+                #endif
 
-#if defined(CONFIG_USER_ONLY)
+                #if defined(CONFIG_USER_ONLY)
                 if (insn & (1 << 22))
                     gen_op_ldub_raw();
                 else
                     gen_op_ldl_raw();
-#else
+                #else
                 if (insn & (1 << 22)) {
                     if (i)
                         gen_op_ldub_user();
@@ -5698,19 +5709,20 @@ static void disas_arm_insn (CPUState * env, DisasContext *s)
                         gen_op_ldl_kernel();
                 }
 #endif
-            } else {
+            } else
+            {
                 /* store */
-#if STORE_CYCLE_COST != 0
-							gen_op_inc_crt_nr_cycles_instr (STORE_CYCLE_COST);
-#endif
+                #if STORE_CYCLE_COST != 0
+                gen_op_inc_crt_nr_cycles_instr (STORE_CYCLE_COST);
+                #endif
 
                 gen_movl_T0_reg(s, rd);
-#if defined(CONFIG_USER_ONLY)
+                #if defined(CONFIG_USER_ONLY)
                 if (insn & (1 << 22))
                     gen_op_stb_raw();
                 else
                     gen_op_stl_raw();
-#else
+                #else
                 if (insn & (1 << 22)) {
                     if (i)
                         gen_op_stb_user();
@@ -5763,25 +5775,22 @@ static void disas_arm_insn (CPUState * env, DisasContext *s)
                         n++;
                 }
 
-								if (insn & (1 << 20))	//read
-									{
-										int nc =
-											n * MULTI_TRANSFER_PER_REGISTER_CYCLE_COST +
-											MULTI_TRANSFER_LOAD_OP_CYCLE_COST;
-										if (insn & (1 << 15))	//SOCLIB counts has -1 cycle error for LDMIA with PC in list
-											nc--;
-										if (nc > 0)
-											gen_op_inc_crt_nr_cycles_instr (nc);
-									}
-								else
-									{
-										if (n * MULTI_TRANSFER_PER_REGISTER_CYCLE_COST +
-												MULTI_TRANSFER_STORE_OP_CYCLE_COST)
-											gen_op_inc_crt_nr_cycles_instr (n *
-																											MULTI_TRANSFER_PER_REGISTER_CYCLE_COST
-																											+
-																											MULTI_TRANSFER_STORE_OP_CYCLE_COST);
-									}
+                if (insn & (1 << 20))	//read
+                {
+                    int nc = n * MULTI_TRANSFER_PER_REGISTER_CYCLE_COST +
+                        MULTI_TRANSFER_LOAD_OP_CYCLE_COST;
+                    if (insn & (1 << 15))	//SOCLIB counts has -1 cycle error for LDMIA with PC in list
+                        nc--;
+                    if (nc > 0)
+                        gen_op_inc_crt_nr_cycles_instr (nc);
+                }
+                else
+                {
+                    if (n * MULTI_TRANSFER_PER_REGISTER_CYCLE_COST + MULTI_TRANSFER_STORE_OP_CYCLE_COST)
+                        gen_op_inc_crt_nr_cycles_instr (
+                            n * MULTI_TRANSFER_PER_REGISTER_CYCLE_COST +
+                            MULTI_TRANSFER_STORE_OP_CYCLE_COST);
+                }
 
                 /* XXX: test invalid n == 0 case ? */
                 if (insn & (1 << 23)) {
@@ -5889,9 +5898,9 @@ static void disas_arm_insn (CPUState * env, DisasContext *s)
         case 0xd:
         case 0xe:
             /* Coprocessor.  */
-#if COCPU_CYCLE_COST != 0
-					gen_op_inc_crt_nr_cycles_instr (COCPU_CYCLE_COST);
-#endif
+            #if COCPU_CYCLE_COST != 0
+            gen_op_inc_crt_nr_cycles_instr (COCPU_CYCLE_COST);
+            #endif
 
             if (disas_coproc_insn(env, s, insn))
                 goto illegal_op;
@@ -7805,7 +7814,7 @@ static inline int gen_intermediate_code_internal(CPUState *env,
             #endif
 
             #if JUMP_CYCLE_COST != 0
-                gen_op_inc_crt_nr_cycles_instr (JUMP_CYCLE_COST);
+            gen_op_inc_crt_nr_cycles_instr (JUMP_CYCLE_COST);
             #endif
 
             gen_op_wfi();
@@ -7816,7 +7825,7 @@ static inline int gen_intermediate_code_internal(CPUState *env,
             #endif
 
             #if JUMP_CYCLE_COST != 0
-                gen_op_inc_crt_nr_cycles_instr (JUMP_CYCLE_COST);
+            gen_op_inc_crt_nr_cycles_instr (JUMP_CYCLE_COST);
             #endif
 
             gen_op_swi();
