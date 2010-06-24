@@ -1,8 +1,16 @@
 /* ARM memory operations.  */
 
 void helper_ld(uint32_t);
-extern void just_synchronize (void);
-extern void call_wait_wb_empty ();
+
+#ifdef IMPLEMENT_CACHES
+    extern void just_synchronize (void);
+    extern void call_wait_wb_empty ();
+    #define just_synchronize_1      just_synchronize
+    #define call_wait_wb_empty_1    call_wait_wb_empty
+#else
+    #define just_synchronize_1()
+    #define call_wait_wb_empty_1()
+#endif
 
 /* Load from address T1 into T0.  */
 #define MEM_LD_OP(name) \
@@ -58,7 +66,7 @@ MEM_SWP_OP(l, l)
 void OPPROTO glue(op_ld##suffix##ex,MEMSUFFIX)(void) \
 { \
     cpu_lock(); \
-    just_synchronize (); \
+    just_synchronize_1 (); \
     helper_mark_exclusive(env, T1); \
     T0 = glue(ld##ldsuffix,MEMSUFFIX)(T1); \
     cpu_unlock(); \
@@ -70,12 +78,12 @@ void OPPROTO glue(op_st##suffix##ex,MEMSUFFIX)(void) \
     int failed; \
     uint32_t phys_addr; \
     cpu_lock(); \
-    just_synchronize (); \
+    just_synchronize_1 (); \
     failed = helper_test_exclusive(env, T1, &phys_addr); \
     /* ??? Is it safe to hold the cpu lock over a store?  */ \
     if (!failed) { \
         glue(st##suffix,MEMSUFFIX)(T1, T0); \
-        call_wait_wb_empty (); \
+        call_wait_wb_empty_1 (); \
         crt_qemu_instance->systemc.memory_clear_exclusive ( \
             env->cpu_platform_index, phys_addr); \
     } \
@@ -162,3 +170,6 @@ MMX_MEM_OP(q, q)
 #undef MMX_MEM_OP
 
 #undef MEMSUFFIX
+
+#undef just_synchronize_1
+#undef call_wait_wb_empty_1

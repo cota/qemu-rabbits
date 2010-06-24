@@ -20,6 +20,8 @@
  */
 #include "exec.h"
 #include <qemu_systemc.h>
+#include <cfg.h>
+
 
 #define REGNAME r0
 #define REG (env->regs[0])

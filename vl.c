@@ -267,6 +267,7 @@ void hw_error(const char *fmt, ...)
 /* main execution loop */
 
 extern unsigned long s_crt_nr_cycles_instr;
+extern int irq_pending (CPUState *penv);
 
 long
 qemu_cpu_loop (CPUState *penv)
@@ -275,14 +276,13 @@ qemu_cpu_loop (CPUState *penv)
 
     int             ret = cpu_exec (penv);
     unsigned long   ninstr = s_crt_nr_cycles_instr;
-    int             old_halted = penv->halted;
 
     if (ninstr)
     {
         s_crt_nr_cycles_instr = 0;
         crt_qemu_instance->systemc.systemc_qemu_consume_instruction_cycles (
             penv->qemu.sc_obj, ninstr);
-        if (old_halted && !penv->halted)
+        if ((ret == EXCP_HLT || ret == EXCP_HALTED) && irq_pending (penv))
             ret = EXCP_INTERRUPT;
     }
 	crt_qemu_instance = NULL;

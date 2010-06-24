@@ -478,9 +478,10 @@ int cpu_exec(CPUState *env1)
                        the stack if an interrupt occured at the wrong time.
                        We avoid this by disabling interrupts when
                        pc contains a magic address.  */
-                    if (interrupt_request & CPU_INTERRUPT_HARD
-                        && ((IS_M(env) && env->regs[15] < 0xfffffff0)
-                            || !(env->uncached_cpsr & CPSR_I))) {
+                    if ((interrupt_request & CPU_INTERRUPT_HARD)
+                        && ((IS_M(env) && (env->regs[15] < 0xfffffff0))
+                            || !(env->uncached_cpsr & CPSR_I)))
+                    {
                         env->exception_index = EXCP_IRQ;
                         do_interrupt(env);
                         BREAK_CHAIN;
@@ -1455,7 +1456,6 @@ qemu_systemc_write_all (void *opaque, target_phys_addr_t offset, uint32_t value,
 
 void just_synchronize (void)
 {
-    #ifdef IMPLEMENT_CACHES
     SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
     int ninstr = s_crt_nr_cycles_instr;
     if (ninstr)
@@ -1465,16 +1465,13 @@ void just_synchronize (void)
             _save_cpu_single_env->qemu.sc_obj, ninstr);
     }
     RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
-    #endif
 }
 
 void call_wait_wb_empty ()
 {
-    #ifdef IMPLEMENT_CACHES
     SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
     _save_crt_qemu_instance->systemc.wait_wb_empty (_save_cpu_single_env->qemu.sc_obj);
     RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
-    #endif
 }
 
 static uint32_t
@@ -1552,12 +1549,28 @@ qemu_set_cpu_fv_percent (CPUState * penv, unsigned long fv_percent)
     penv->qemu.fv_percent = (fv_percent > 0) ? fv_percent : 100;
 }
 
+int irq_pending (CPUState *penv)
+{
+    #if defined(TARGET_ARM)
+        return (penv->interrupt_request & (CPU_INTERRUPT_FIQ | CPU_INTERRUPT_HARD));
+    #elif defined (TARGET_SPARC)
+        return ((penv->interrupt_request & CPU_INTERRUPT_HARD) && (penv->psret != 0));
+    #else
+        #error CPU not implemented in irq_pending
+    #endif
+}
+
 void
 tb_start (TranslationBlock *tb)
 {
     cpu_single_env->flush_last_tb = tb;
 
     if (s_crt_nr_cycles_instr > 2000)
+    {
+        just_synchronize ();
+    }
+
+    if (irq_pending (cpu_single_env))
     {
         b_use_backdoor = 1;
         cpu_interrupt (cpu_single_env, CPU_INTERRUPT_EXIT);
@@ -1568,51 +1581,15 @@ tb_start (TranslationBlock *tb)
 static int
 cpu_halted_systemc ()
 {
-    CPUState *penv = (CPUState *) crt_qemu_instance->first_cpu;
-    int ret = 0;
-
-    while (penv)
+    if (cpu_single_env->halted)
     {
-        if (penv->halted)
-        {
-            #if defined(TARGET_ARM)
-            if (penv->interrupt_request & (CPU_INTERRUPT_FIQ | CPU_INTERRUPT_HARD | CPU_INTERRUPT_EXITTB))
-            #elif defined (TARGET_SPARC)
-            if ((env->interrupt_request & CPU_INTERRUPT_HARD) && (env->psret != 0))
-            #else
-            #error CPU not implemented in cpu_halted_systemc
-            #endif
-            {
-                penv->halted = 0;
-
-                if (penv != cpu_single_env)
-                {
-                    SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
-
-                    int ninstr = s_crt_nr_cycles_instr;
-                    if (ninstr)
-                    {
-                        s_crt_nr_cycles_instr = 0;
-                        _save_crt_qemu_instance->systemc.systemc_qemu_consume_instruction_cycles (
-                            _save_cpu_single_env->qemu.sc_obj, ninstr);
-                    }
-
-                    _save_crt_qemu_instance->systemc.systemc_qemu_wakeup (penv->qemu.sc_obj);
-
-                    RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
-                }
-            }
-            else
-            {
-                if (penv == cpu_single_env)
-                    ret = EXCP_HALTED;
-            }
-        }
-
-        penv = penv->next_cpu;
+        if (irq_pending (cpu_single_env))
+            cpu_single_env->halted = 0;
+        else
+            return EXCP_HALTED;
     }
 
-    return ret;
+    return 0;
 }
 
 int64_t
