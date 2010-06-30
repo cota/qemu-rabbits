@@ -33,6 +33,7 @@
 #include <string.h>
 #include <inttypes.h>
 
+#include <cfg.h>
 #include "cpu.h"
 #include "exec-all.h"
 

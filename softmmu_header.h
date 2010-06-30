@@ -18,9 +18,9 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#include <cfg.h>
 #include <qemu_systemc.h>
 #include <qemu_encap.h>
-#include "cfg.h"
 
 void printf_fulul (unsigned long, unsigned long, unsigned long,
 									 unsigned long);

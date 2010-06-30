@@ -18,7 +18,7 @@ TMPS="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}.S"
 
 # default parameters
 #§§mari
-target_list="arm-softmmu sparc-softmmu"
+target_list="arm-softmmu"
 #target_list="sparc-softmmu"
 
 prefix="$PWD/release"

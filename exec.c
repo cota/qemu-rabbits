@@ -17,14 +17,17 @@
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
+#include <cfg.h>
 #include "config.h"
+
 #ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
+    #define WIN32_LEAN_AND_MEAN
+    #include <windows.h>
 #else
-#include <sys/types.h>
-#include <sys/mman.h>
+    #include <sys/types.h>
+    #include <sys/mman.h>
 #endif
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -33,8 +36,8 @@
 #include <unistd.h>
 #include <inttypes.h>
 
-#include <cfg.h>
 #include <qemu_systemc.h>
+
 extern void write_access (unsigned long addr, int nb, unsigned long val);
 extern void *data_cache_access ();
 extern unsigned long long data_cache_accessq ();
@@ -365,38 +368,38 @@ static void page_flush_tb(void)
 void tb_flush(CPUState *env1)
 {
     CPUState        *env;
+
     #if defined(DEBUG_FLUSH)
-    printf("qemu: flush code_size=%ld nb_tbs=%d avg_tb_size=%ld\n",
-           (unsigned long)(code_gen_ptr - code_gen_buffer),
-		       crt_qemu_instance->nb_tbs, crt_qemu_instance->nb_tbs > 0 ?
-					 ((unsigned long) (code_gen_ptr - code_gen_buffer)) / crt_qemu_instance->nb_tbs : 0);
+    printf ("qemu: flush code_size=%ld nb_tbs=%d avg_tb_size=%ld\n",
+        (unsigned long)(code_gen_ptr - code_gen_buffer),
+        crt_qemu_instance->nb_tbs, crt_qemu_instance->nb_tbs > 0 ?
+        ((unsigned long) (code_gen_ptr - code_gen_buffer)) / crt_qemu_instance->nb_tbs : 0);
     #endif
 
     for (env = (CPUState *) crt_qemu_instance->first_cpu; env != NULL; env = env->next_cpu)
     {
-        if (cpu_single_env != env && env->current_tb)
-        {
-            cpu_interrupt (env, CPU_INTERRUPT_EXIT);
-
-            struct TranslationBlock *tb = env->flush_last_tb;
-            if (env->need_flush == 0)
-            {
-                env->need_flush = 1;
-                tb->flush_cnt++;
-                if (tb->flush_cnt == 1)
-                {
-                    //order the TBs in the list by tc_ptr
-                    struct TranslationBlock **ptb;
-                    ptb = (struct TranslationBlock **) &crt_qemu_instance->flush_head;
-                    while (*ptb && tb->tc_ptr > (*ptb)->tc_ptr)
-                        ptb = & (*ptb)->flush_next;
-                    tb->flush_next = *ptb;
-                    *ptb = tb;
-                }
-            }
-        }
+        struct TranslationBlock *tb = env->flush_last_tb;
 
         memset (env->tb_jmp_cache, 0, TB_JMP_CACHE_SIZE * sizeof (void *));
+
+        if (cpu_single_env != env && tb != NULL && env->need_flush == 0)
+        {
+            if (env->current_tb)
+                cpu_interrupt (env, CPU_INTERRUPT_EXIT);
+
+            env->need_flush = 1;
+            tb->flush_cnt++;
+            if (tb->flush_cnt == 1)
+            {
+                //order the TBs in the list by tc_ptr
+                struct TranslationBlock **ptb;
+                ptb = (struct TranslationBlock **) &crt_qemu_instance->flush_head;
+                while (*ptb && tb->tc_ptr > (*ptb)->tc_ptr)
+                    ptb = & (*ptb)->flush_next;
+                tb->flush_next = *ptb;
+                *ptb = tb;
+            }
+        }
     }
 
     crt_qemu_instance->nb_tbs = 0;

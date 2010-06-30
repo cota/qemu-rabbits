@@ -1,3 +1,5 @@
+#include <cfg.h>
+
 void OPPROTO
 op_start_tb (void)
 {

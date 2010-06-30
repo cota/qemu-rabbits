@@ -18,6 +18,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 #include <stdlib.h>
+#include <cfg.h>
 #include "config.h"
 #include "exec.h"
 #include <assert.h>
@@ -302,9 +303,9 @@ static void flush_orphan_tb ()
     TranslationBlock    *tb = cpu_single_env->flush_last_tb;
     cpu_single_env->flush_last_tb = NULL;
 
-    if (cpu_single_env->need_flush || tb->flush_cnt)
+    if (cpu_single_env->need_flush)
     {
-        if (!cpu_single_env->need_flush || !tb->flush_cnt)
+        if (!tb->flush_cnt)
         {
             printf ("%s: env->need_flush=%d, tb->flush_cnt=%d\n",
                 __FUNCTION__, cpu_single_env->need_flush, tb->flush_cnt);
@@ -1573,6 +1574,7 @@ tb_start (TranslationBlock *tb)
     if (irq_pending (cpu_single_env))
     {
         b_use_backdoor = 1;
+        just_synchronize ();
         cpu_interrupt (cpu_single_env, CPU_INTERRUPT_EXIT);
         b_use_backdoor = 0;
     }

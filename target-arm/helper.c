@@ -1077,36 +1077,40 @@ target_phys_addr_t cpu_get_phys_page_debug(CPUState *env, target_ulong addr)
 
 void helper_mark_exclusive(CPUState *env, uint32_t addr)
 {
-    addr = get_phys_addr_gdb (addr);
-     env->mmon_addr = addr;
-    crt_qemu_instance->systemc.memory_mark_exclusive (
-        env->cpu_platform_index, addr);
+    #ifndef IMPLEMENT_CACHES
+        env->mmon_addr = addr;
+    #else
+        env->mmon_addr = get_phys_addr_gdb (addr);
+        crt_qemu_instance->systemc.memory_mark_exclusive (
+            env->cpu_platform_index, env->mmon_addr);
+    #endif
 }
 
-int helper_test_exclusive(CPUState *env, uint32_t addr, uint32_t *phys_addr)
+int helper_test_exclusive(CPUState *env, uint32_t addr)
 {
-    addr = get_phys_addr_gdb (addr);
-    *phys_addr = addr;
+    #ifndef IMPLEMENT_CACHES
+        return (env->mmon_addr != addr);
+    #else
+        addr = get_phys_addr_gdb (addr);
 
-    return (env->mmon_addr == -1) ||
-        crt_qemu_instance->systemc.memory_test_exclusive (
-        env->cpu_platform_index, addr);
+        return (env->mmon_addr == -1) || (env->mmon_addr != addr) ||
+            crt_qemu_instance->systemc.memory_test_exclusive (
+            env->cpu_platform_index, addr);
+    #endif
 }
 
 void helper_clrex(CPUState *env)
 {
-    if (env->mmon_addr != -1)
-    {
-        uint32_t        phys_addr;
-        
-        if (!helper_test_exclusive (env, env->mmon_addr, &phys_addr))
-        {
-            crt_qemu_instance->systemc.memory_clear_exclusive (
-                env->cpu_platform_index, phys_addr);
-        }
-
+    #ifndef IMPLEMENT_CACHES
         env->mmon_addr = -1;
-    }
+    #else
+        if (env->mmon_addr == -1)
+            return;
+        
+        crt_qemu_instance->systemc.memory_clear_exclusive (
+                env->cpu_platform_index, env->mmon_addr);
+        env->mmon_addr = -1;
+    #endif
 }
 
 void helper_set_cp(CPUState *env, uint32_t insn, uint32_t val)

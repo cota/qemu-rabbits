@@ -1,4 +1,5 @@
 /* ARM memory operations.  */
+#include <cfg.h>
 
 void helper_ld(uint32_t);
 
@@ -76,18 +77,16 @@ void OPPROTO glue(op_ld##suffix##ex,MEMSUFFIX)(void) \
 void OPPROTO glue(op_st##suffix##ex,MEMSUFFIX)(void) \
 { \
     int failed; \
-    uint32_t phys_addr; \
     cpu_lock(); \
     just_synchronize_1 (); \
-    failed = helper_test_exclusive(env, T1, &phys_addr); \
+    failed = helper_test_exclusive(env, T1); \
     /* ??? Is it safe to hold the cpu lock over a store?  */ \
     if (!failed) { \
         glue(st##suffix,MEMSUFFIX)(T1, T0); \
         call_wait_wb_empty_1 (); \
-        crt_qemu_instance->systemc.memory_clear_exclusive ( \
-            env->cpu_platform_index, phys_addr); \
+        helper_clrex (env); \
     } \
-    env->mmon_addr = -1;                \
+    env->mmon_addr = -1; \
     T0 = failed; \
     cpu_unlock(); \
     FORCE_RET(); \
@@ -103,6 +102,7 @@ EXCLUSIVE_OP(l, l)
 void OPPROTO glue(op_ldqex,MEMSUFFIX)(void)
 {
     cpu_lock();
+    just_synchronize_1 ();
     helper_mark_exclusive(env, T1);
     T0 = glue(ldl,MEMSUFFIX)(T1);
     T1 = glue(ldl,MEMSUFFIX)((T1 + 4));
@@ -114,19 +114,19 @@ void OPPROTO glue(op_ldqex,MEMSUFFIX)(void)
 void OPPROTO glue(op_stqex,MEMSUFFIX)(void)
 {
     int failed;
-    uint32_t phys_addr;
     cpu_lock();
-    failed = helper_test_exclusive(env, T1, &phys_addr);
+    just_synchronize_1 ();
+    failed = helper_test_exclusive(env, T1);
     /* ??? Is it safe to hold the cpu lock over a store?  */
     if (!failed) {
         glue(stl,MEMSUFFIX)(T1, T0);
         glue(stl,MEMSUFFIX)((T1 + 4), T2);
-		
-        env->mmon_addr = -1;
-        crt_qemu_instance->systemc.memory_clear_exclusive (
-            env->cpu_platform_index, phys_addr);
+
+        call_wait_wb_empty_1 ();
+        helper_clrex (env);
     }
     T0 = failed;
+    env->mmon_addr = -1;
     cpu_unlock();
     FORCE_RET();
 }

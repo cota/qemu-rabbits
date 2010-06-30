@@ -3,7 +3,7 @@
 
 //#define IMPLEMENT_CACHES
 #define ONE_MEM_MODULE
-//#define GDB_ENABLED
+#define GDB_ENABLED
 
 //assure a consistent configuration
 #if defined(IMPLEMENT_CACHES) && defined(ONE_MEM_MODULE)

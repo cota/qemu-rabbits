@@ -64,7 +64,7 @@ uint32_t helper_v7m_mrs(CPUState *env, int reg);
 void helper_v7m_msr(CPUState *env, int reg, uint32_t val);
 
 void helper_mark_exclusive(CPUARMState *, uint32_t addr);
-int helper_test_exclusive(CPUARMState *, uint32_t addr, uint32_t *phys_addr);
+int helper_test_exclusive(CPUARMState *, uint32_t addr);
 void helper_clrex(CPUARMState *env);
 
 void cpu_loop_exit(void);
