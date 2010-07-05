@@ -17,7 +17,7 @@
 #include "../../components/qemu_wrapper/qemu_imported.h"
 #include "gdb_srv.h"
 
-#define DEBUG_GDB_SRV
+//#define DEBUG_GDB_SRV
 
 enum
 {

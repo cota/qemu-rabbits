@@ -94,6 +94,14 @@ static void sparc_longjmp(jmp_buf buf, int val)
 #endif
 #endif
 
+
+//#define DEBUG_TB_ALLOC
+#ifdef DEBUG_TB_ALLOC
+    #define DTBALLOCPRINTF printf
+#else
+    #define DTBALLOCPRINTF if (0) printf
+#endif
+
 void cpu_loop_exit(void)
 {
     /* NOTE: the register at this point must be saved by hand because
@@ -301,6 +309,9 @@ static void flush_orphan_tb ()
         return;
 
     TranslationBlock    *tb = cpu_single_env->flush_last_tb;
+    int                 tb_idx = ((unsigned long) tb -
+        (unsigned long) crt_qemu_instance->tbs) / sizeof (TranslationBlock);
+
     cpu_single_env->flush_last_tb = NULL;
 
     if (cpu_single_env->need_flush)
@@ -311,9 +322,23 @@ static void flush_orphan_tb ()
                 __FUNCTION__, cpu_single_env->need_flush, tb->flush_cnt);
             exit (1);
         }
+        if (tb_idx != cpu_single_env->flush_idx_blocked_tb)
+        {
+            printf ("%s: tb blocked=%d, tb freed=%d!\n",
+                __FUNCTION__, cpu_single_env->flush_idx_blocked_tb, tb_idx);
+            exit (1);
+        }
 
         cpu_single_env->need_flush = 0;
+        cpu_single_env->flush_idx_blocked_tb = -1;
         tb->flush_cnt--;
+        T0 = 0;
+
+        DTBALLOCPRINTF ("FREE cpu=%d, tb=%d, pc=0x%lx, cnt=%d\n",
+            cpu_single_env->cpu_index,
+            tb_idx,
+            (unsigned long) tb->pc, tb->flush_cnt);
+
         if (tb->flush_cnt == 0)
         {
             TranslationBlock    **ptb;
@@ -325,7 +350,8 @@ static void flush_orphan_tb ()
                 printf ("%s: cannot find TB in the flushing list!\n", __FUNCTION__);
                 exit (1);
             }
-            *ptb = (*ptb)->flush_next;
+            *ptb = tb->flush_next;
+            tb->flush_next = NULL;
         }
     }
 }
@@ -531,13 +557,38 @@ int cpu_exec(CPUState *env1)
                 /* see if we can patch the calling TB. When the TB
                    spans two pages, we cannot safely do a direct
                    jump. */
+                if (T0 != 0 && tb->page_addr[1] == -1)
                 {
-                    if (T0 != 0 && tb->page_addr[1] == -1) {
-                    /* spin_lock(&tb_lock); */
-                    tb_add_jump((TranslationBlock *)(long)(T0 & ~3), T0 & 3, tb);
-                    /* spin_unlock(&tb_lock); */
+                    TranslationBlock    *tb_prev = (TranslationBlock *)(long)(T0 & ~3);
+
+                    if (tb_prev->flush_cnt == 0)
+                    {
+                        CPUState             *penv;
+                        for (penv = (CPUState *) crt_qemu_instance->first_cpu;
+                             penv != NULL; penv = penv->next_cpu)
+                        {
+                            if (tb_prev == penv->flush_last_tb && penv->interrupt_request)
+                                break;
+                        }
+
+                        if (!penv)
+                        {
+                            DTBALLOCPRINTF ("LINK cpu=%d, tb=%lu.pc=0x%lx[%d]->tb=%lu.pc=0x%lx\n",
+                                cpu_single_env->cpu_index,
+                                ((unsigned long) tb_prev - (unsigned long) crt_qemu_instance->tbs) / sizeof (TranslationBlock),
+                                (unsigned long) tb_prev->pc, T0 & 3,
+                                ((unsigned long) tb - (unsigned long) crt_qemu_instance->tbs) / sizeof (TranslationBlock),
+                                (unsigned long) tb->pc
+                                );
+                            tb_add_jump(tb_prev, T0 & 3, tb);
+                        }
+                        else
+                            T0 = 0;
+                    }
+                    else
+                        T0 = 0;
                 }
-                }
+
                 tc_ptr = tb->tc_ptr;
                 env->current_tb = tb;
                 /* execute the generated code */
@@ -1569,14 +1620,6 @@ tb_start (TranslationBlock *tb)
     if (s_crt_nr_cycles_instr > 2000)
     {
         just_synchronize ();
-    }
-
-    if (irq_pending (cpu_single_env))
-    {
-        b_use_backdoor = 1;
-        just_synchronize ();
-        cpu_interrupt (cpu_single_env, CPU_INTERRUPT_EXIT);
-        b_use_backdoor = 0;
     }
 }
 

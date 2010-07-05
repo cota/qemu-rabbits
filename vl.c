@@ -46,13 +46,14 @@ qemu_instance           *crt_qemu_instance = NULL;
 void
 sigsegv_h (int x)
 {
-  printf ("SIGSEGV signal received! (%d)\n", x);
+    printf ("SIGSEGV signal received! (%d)\n", x);
+    exit (1);
 }
 
 void
 sigabrt_h (int x)
 {
-  printf ("SIGABRT signal received! (%d)\n", x);
+    printf ("SIGABRT signal received! (%d)\n", x);
 }
 
 void

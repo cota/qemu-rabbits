@@ -28,6 +28,13 @@
     #include <sys/mman.h>
 #endif
 
+//#define DEBUG_TB_ALLOC
+#ifdef DEBUG_TB_ALLOC
+    #define DTBALLOCPRINTF printf
+#else
+    #define DTBALLOCPRINTF if (0) printf
+#endif
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -42,6 +49,7 @@ extern void write_access (unsigned long addr, int nb, unsigned long val);
 extern void *data_cache_access ();
 extern unsigned long long data_cache_accessq ();
 extern unsigned long data_cache_accessl ();
+extern void just_synchronize (void);
 
 #define macro_tb_phys_hash ((TranslationBlock *(*)) crt_qemu_instance->tb_phys_hash)
 
@@ -367,7 +375,9 @@ static void page_flush_tb(void)
 /* XXX: tb_flush is currently not thread safe */
 void tb_flush(CPUState *env1)
 {
-    CPUState        *env;
+    CPUState                    *penv;
+    struct TranslationBlock     *tb;
+    int                         tb_idx;
 
     #if defined(DEBUG_FLUSH)
     printf ("qemu: flush code_size=%ld nb_tbs=%d avg_tb_size=%ld\n",
@@ -376,28 +386,55 @@ void tb_flush(CPUState *env1)
         ((unsigned long) (code_gen_ptr - code_gen_buffer)) / crt_qemu_instance->nb_tbs : 0);
     #endif
 
-    for (env = (CPUState *) crt_qemu_instance->first_cpu; env != NULL; env = env->next_cpu)
+    tb = env1->flush_last_tb;
+    DTBALLOCPRINTF ("FLUSH cpu=%d, tb=%lu, pc=0x%lx, cnt=%d\n",
+        env1->cpu_index,
+        ((unsigned long) tb - (unsigned long) crt_qemu_instance->tbs) /
+            sizeof (TranslationBlock),
+        (unsigned long) tb->pc, tb->flush_cnt);
+
+    just_synchronize ();
+
+    for (penv = (CPUState *) crt_qemu_instance->first_cpu; penv != NULL;
+         penv = penv->next_cpu)
     {
-        struct TranslationBlock *tb = env->flush_last_tb;
+        memset (penv->tb_jmp_cache, 0, TB_JMP_CACHE_SIZE * sizeof (void *));
 
-        memset (env->tb_jmp_cache, 0, TB_JMP_CACHE_SIZE * sizeof (void *));
-
-        if (cpu_single_env != env && tb != NULL && env->need_flush == 0)
+        tb = penv->flush_last_tb;
+        if (penv != env1 && tb != NULL)
         {
-            if (env->current_tb)
-                cpu_interrupt (env, CPU_INTERRUPT_EXIT);
-
-            env->need_flush = 1;
-            tb->flush_cnt++;
-            if (tb->flush_cnt == 1)
+            tb_idx = ((unsigned long) tb - (unsigned long) crt_qemu_instance->tbs) /
+                sizeof (TranslationBlock);
+            if (penv->need_flush && tb_idx != penv->flush_idx_blocked_tb)
             {
-                //order the TBs in the list by tc_ptr
-                struct TranslationBlock **ptb;
-                ptb = (struct TranslationBlock **) &crt_qemu_instance->flush_head;
-                while (*ptb && tb->tc_ptr > (*ptb)->tc_ptr)
-                    ptb = & (*ptb)->flush_next;
-                tb->flush_next = *ptb;
-                *ptb = tb;
+                 printf ("CPU %d already needs a flush (old tb=%d, new tb=%d!\n",
+                     penv->cpu_index, penv->flush_idx_blocked_tb, tb_idx);
+                 exit (1);
+            }
+
+            if (!penv->need_flush)
+            {
+                penv->need_flush = 1;
+                tb->flush_cnt++;
+                penv->flush_idx_blocked_tb = tb_idx;
+
+                cpu_interrupt (penv, CPU_INTERRUPT_EXIT);
+
+                DTBALLOCPRINTF ("BLOCK cpu=%d, tb=%d, pc=0x%lx, cnt=%d\n",
+                    penv->cpu_index,
+                    penv->flush_idx_blocked_tb,
+                    (unsigned long) tb->pc, tb->flush_cnt);
+
+                if (tb->flush_cnt == 1)
+                {
+                    //order the TBs in the list by tc_ptr
+                    struct TranslationBlock **ptb;
+                    ptb = (struct TranslationBlock **) &crt_qemu_instance->flush_head;
+                    while (*ptb && tb->tc_ptr > (*ptb)->tc_ptr)
+                        ptb = & (*ptb)->flush_next;
+                    tb->flush_next = *ptb;
+                    *ptb = tb;
+                }
             }
         }
     }
@@ -1008,6 +1045,9 @@ TranslationBlock *tb_alloc(target_ulong pc)
     }
     tb->flush_next = NULL;
 
+    DTBALLOCPRINTF ("ALLOC cpu=%d, tb=%d, pc=0x%lx\n",
+        cpu_single_env->cpu_index, i, (unsigned long) pc);
+
     return tb;
 }
 
@@ -1093,6 +1133,16 @@ static inline void tb_reset_jump_recursive2(TranslationBlock *tb, int n)
             tb1 = (TranslationBlock *)((long)tb1 & ~3);
             if (n1 == 2)
                 break;
+
+            if (((unsigned long) tb1->jmp_next[n1] & ~3) == 0)
+            {
+                printf ("ERR01 cpu=%d, tb=%lu, pc=0x%lx, n1=%u\n",
+                    cpu_single_env->cpu_index,
+                    ((unsigned long) tb1 - (unsigned long) crt_qemu_instance->tbs) /
+                        sizeof (TranslationBlock), (unsigned long) tb1->pc, n1);
+                fflush (stdout);
+            }
+
             tb1 = tb1->jmp_next[n1];
         }
         /* we are now sure now that tb jumps to tb1 */
@@ -1285,11 +1335,13 @@ void cpu_interrupt(CPUState *env, int mask)
     TranslationBlock *tb;
     /* static int interrupt_lock; */
 
-    env->interrupt_request |= mask;
+    if (!env->interrupt_request || mask != CPU_INTERRUPT_EXIT)
+        env->interrupt_request |= mask;
+
     /* if the cpu is currently executing code, we must unlink it and
        all the potentially executing TB */
     tb = env->current_tb;
-    if (tb)
+    if (env->flush_last_tb)
     {
         env->current_tb = NULL;
         tb_reset_jump_recursive(env->flush_last_tb);

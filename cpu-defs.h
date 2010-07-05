@@ -164,6 +164,7 @@ typedef struct CPUTLBEntry {
         int                         gdb_cpu_index;                      \
     } qemu;                                                             \
     struct TranslationBlock         *flush_last_tb;                     \
+    int                             flush_idx_blocked_tb;               \
     int                             need_flush;                         \
     target_ulong                    gdb_pc;       /* program counter */ \
     unsigned long                   sc_mem_host_addr;                   \
