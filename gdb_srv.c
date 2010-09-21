@@ -775,9 +775,7 @@ static RSState gdb_handle_packet (GDBState *s, const char *line_buf)
     case 'm': //read memory
         addr = strtoull (p, (char **) &p, 16);
 
-        b_use_backdoor = 1;
         addr = get_phys_addr_gdb (addr);
-        b_use_backdoor = 0;
 
         if (*p == ',')
             p++;
@@ -1090,7 +1088,9 @@ void gdb_loop (int idx_watch, int bwrite, unsigned long new_val)
     char              buf[256], buf1[256];
     int               i, nb;
     GDBState          *s = &g_gdb_state;
+    unsigned char     save_b_use_backdoor = b_use_backdoor;
 
+    b_use_backdoor = 1;
     write_watchpoint = 0;
 
     if (s->running_state != STATE_INIT)
@@ -1155,7 +1155,10 @@ void gdb_loop (int idx_watch, int bwrite, unsigned long new_val)
     }
 
     if (s->running_state == STATE_DETACH)
+    {
+        b_use_backdoor = save_b_use_backdoor;
         return;
+    }
 
     if (one_cpu)
     {
@@ -1180,9 +1183,12 @@ void gdb_loop (int idx_watch, int bwrite, unsigned long new_val)
         {
             printf ("GDB disconnected!\n");
             s->running_state = STATE_DETACH;
+            b_use_backdoor = save_b_use_backdoor;
             return;
         }
     }
+
+    b_use_backdoor = save_b_use_backdoor;
 }
 
 void close_gdb_sockets ()

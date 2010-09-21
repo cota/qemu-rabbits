@@ -1694,12 +1694,12 @@ data_cache_access ()
                 cpu_single_env->qemu.sc_obj, tmp_physaddr);
     #endif
 
-    int cpu, idx;
-    unsigned long addr, tag;
-
     if (b_use_backdoor)
         return crt_qemu_instance->systemc.systemc_get_mem_addr (
                 cpu_single_env->qemu.sc_obj, tmp_physaddr);
+
+    int cpu, idx;
+    unsigned long addr, tag;
 
     cpu = cpu_single_env->cpu_index;
     addr = tmp_physaddr;
