@@ -1997,9 +1997,23 @@ void gdb_verify (unsigned long addr
         cpu_single_env->gdb_npc = npc;
     #endif
 
+    #if 0
+    static long cnt1 = 0;
+    if (cpu_single_env->gdb_pc == 0xc0044e48 &&
+        cpu_single_env->cpu_index == 0 &&
+        cpu_single_env->regs[0] == 0xc008e6f4)
+    {
+        cnt1++;
+        printf ("cnt1=%ld\n", cnt1);
+        if (cnt1 == 45)
+            printf ("brk\n");
+    }
+    #endif
+
     if (!gdb_condition (addr))
         return;
 
+    #if 0
     int             ninstr = s_crt_nr_cycles_instr;
 
     SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
@@ -2010,6 +2024,7 @@ void gdb_verify (unsigned long addr
             _save_cpu_single_env->qemu.sc_obj, ninstr);
     }
     RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
+    #endif
 
     if (!gdb_condition (addr))
         return;
