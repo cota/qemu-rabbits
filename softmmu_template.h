@@ -156,7 +156,7 @@ DATA_TYPE REGPARM(1) glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             }
             #endif
 
-            #ifdef ONE_MEM_MODULE
+            #if defined(ONE_MEM_MODULE) && !defined(IMPLEMENT_CACHES)
             res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(long)physaddr + env->sc_mem_host_addr);
             #else
             tmp_physaddr = physaddr - (unsigned long) phys_ram_base;
@@ -234,7 +234,7 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
         }
         else
         {
-            #ifdef ONE_MEM_MODULE
+            #if defined(ONE_MEM_MODULE) && !defined(IMPLEMENT_CACHES)
             res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(long)physaddr + env->sc_mem_host_addr);
             #else
             /* unaligned/aligned access in the same page */
@@ -347,7 +347,7 @@ void REGPARM(2) glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             }
             #endif
 
-            #ifdef ONE_MEM_MODULE
+            #if defined(ONE_MEM_MODULE) && !defined(IMPLEMENT_CACHES)
             glue(glue(st, SUFFIX), _raw)((uint8_t *)(long)physaddr + env->sc_mem_host_addr, val);
             #else
             glue (write_access, SUFFIX) (
@@ -415,7 +415,7 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
         {
             /* aligned/unaligned access in the same page */
 
-            #ifdef ONE_MEM_MODULE
+            #if defined(ONE_MEM_MODULE) && !defined(IMPLEMENT_CACHES)
             glue(glue(st, SUFFIX), _raw)((uint8_t *)(long)physaddr + env->sc_mem_host_addr, val);
             #else
             glue (write_access,	SUFFIX) (

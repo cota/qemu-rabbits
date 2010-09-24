@@ -12,6 +12,10 @@
 #define CYCLES_LATENCY_CACHE_MISS       28
 #define CYCLES_LATENCY_WRITE            1
 
+#define NS_ICACHE_MISS                  92
+#define NS_DCACHE_MISS                  92
+#define NS_WRITE_ACCESS                 15
+
 #define MEM_LIMIT           0x8000000
 
 #define DCACHE_LINES        256

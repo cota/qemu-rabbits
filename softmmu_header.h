@@ -279,7 +279,7 @@ static inline RES_TYPE glue(glue(ld, USUFFIX), MEMSUFFIX)(target_ulong ptr)
     {
         physaddr = addr + env->tlb_table[mmu_idx][index].addend;
 
-        #ifdef ONE_MEM_MODULE
+        #if defined(ONE_MEM_MODULE) && !defined(IMPLEMENT_CACHES)
         res = glue(glue(ld, USUFFIX), _raw)((uint8_t *) physaddr + env->sc_mem_host_addr);
         #else
         tmp_physaddr = physaddr - (unsigned long) phys_ram_base;
@@ -318,7 +318,7 @@ static inline int glue(glue(lds, SUFFIX), MEMSUFFIX)(target_ulong ptr)
     {
         physaddr = addr + env->tlb_table[mmu_idx][index].addend;
 
-        #ifdef ONE_MEM_MODULE
+        #if defined(ONE_MEM_MODULE) && !defined(IMPLEMENT_CACHES)
         res = glue(glue(lds, SUFFIX), _raw)((uint8_t *) physaddr + env->sc_mem_host_addr);
         #else
         tmp_physaddr = physaddr - (unsigned long) phys_ram_base;
@@ -364,7 +364,7 @@ static inline void glue(glue(st, SUFFIX), MEMSUFFIX)(target_ulong ptr, RES_TYPE 
     {
         physaddr = addr + env->tlb_table[mmu_idx][index].addend;
 
-        #ifdef ONE_MEM_MODULE
+        #if defined(ONE_MEM_MODULE) && !defined(IMPLEMENT_CACHES)
         glue(glue(st, SUFFIX), _raw)((uint8_t *)physaddr + env->sc_mem_host_addr, v);
         #else
        glue (write_access,	SUFFIX) (

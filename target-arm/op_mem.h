@@ -3,7 +3,7 @@
 
 void helper_ld(uint32_t);
 
-#ifdef IMPLEMENT_CACHES
+#ifdef IMPLEMENT_FULL_CACHES
     extern void just_synchronize (void);
     extern void call_wait_wb_empty (void);
     #define just_synchronize_1      just_synchronize

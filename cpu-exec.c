@@ -1441,7 +1441,22 @@ int cpu_signal_handler(int host_signum, void *pinfo,
         b_use_backdoor = _save_b_use_backdoor; \
     }while (0)
 
+
+#ifdef IMPLEMENT_LATE_CACHES
+#define CACHE_LATE_SYNC_MISSES() \
+do { \
+    unsigned long   ns_misses = s_crt_ns_misses;\
+    if (ns_misses) { \
+        s_crt_ns_misses = 0; \
+        _save_crt_qemu_instance->systemc.systemc_qemu_consume_ns (ns_misses); \
+    } \
+} while (0)
+#else
+#define CACHE_LATE_SYNC_MISSES()
+#endif
+
 unsigned long s_crt_nr_cycles_instr = 0;
+unsigned long s_crt_ns_misses = 0; //for cache late configuration
 unsigned long long g_crt_nr_instr = 0;
 unsigned long long g_no_dcache_miss = 0;
 unsigned long long g_no_icache_miss = 0;
@@ -1471,9 +1486,12 @@ qemu_systemc_read_all (void *opaque, target_phys_addr_t offset,
     SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
 
     int ninstr = s_crt_nr_cycles_instr;
+    s_crt_nr_cycles_instr = 0;
+
+    CACHE_LATE_SYNC_MISSES ();
+    
     if (ninstr)
     {
-        s_crt_nr_cycles_instr = 0;
         _save_crt_qemu_instance->systemc.systemc_qemu_consume_instruction_cycles (
             _save_cpu_single_env->qemu.sc_obj, ninstr);
     }
@@ -1493,9 +1511,12 @@ qemu_systemc_write_all (void *opaque, target_phys_addr_t offset, uint32_t value,
     SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
 
     int ninstr = s_crt_nr_cycles_instr;
+    s_crt_nr_cycles_instr = 0;
+
+    CACHE_LATE_SYNC_MISSES ();
+
     if (ninstr)
     {
-        s_crt_nr_cycles_instr = 0;
         _save_crt_qemu_instance->systemc.systemc_qemu_consume_instruction_cycles (
             _save_cpu_single_env->qemu.sc_obj, ninstr);
     }
@@ -1509,10 +1530,14 @@ qemu_systemc_write_all (void *opaque, target_phys_addr_t offset, uint32_t value,
 void just_synchronize (void)
 {
     SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
+
     int ninstr = s_crt_nr_cycles_instr;
+    s_crt_nr_cycles_instr = 0;
+    
+    CACHE_LATE_SYNC_MISSES ();
+
     if (ninstr)
     {
-        s_crt_nr_cycles_instr = 0;
         _save_crt_qemu_instance->systemc.systemc_qemu_consume_instruction_cycles (
             _save_cpu_single_env->qemu.sc_obj, ninstr);
     }
@@ -1643,18 +1668,20 @@ qemu_get_clock_with_systemc ()
     if (cpu_single_env == NULL)
         return 0;
 
+    SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
+
     int ninstr = s_crt_nr_cycles_instr;
+    s_crt_nr_cycles_instr = 0;
+
+    CACHE_LATE_SYNC_MISSES ();
+
     if (ninstr > 0)
     {
-        SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
-
-        s_crt_nr_cycles_instr = 0;
         _save_crt_qemu_instance->systemc.systemc_qemu_consume_instruction_cycles (
             _save_cpu_single_env->qemu.sc_obj, ninstr);
-
-        RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
     }
-    
+    RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
+
     return crt_qemu_instance->systemc.systemc_qemu_get_time ();
 }
 
@@ -1689,20 +1716,17 @@ void log_data_cache (unsigned long addr_miss);
 inline void *
 data_cache_access ()
 {
-    #ifndef IMPLEMENT_CACHES
-        return crt_qemu_instance->systemc.systemc_get_mem_addr (
-                cpu_single_env->qemu.sc_obj, tmp_physaddr);
-    #endif
-
     if (b_use_backdoor)
         return crt_qemu_instance->systemc.systemc_get_mem_addr (
                 cpu_single_env->qemu.sc_obj, tmp_physaddr);
 
+    unsigned long addr = tmp_physaddr;
+    
+    #ifdef IMPLEMENT_CACHES
     int cpu, idx;
-    unsigned long addr, tag;
+    unsigned long tag;
 
     cpu = cpu_single_env->cpu_index;
-    addr = tmp_physaddr;
     tag = addr >> DCACHE_LINE_BITS;
     idx = tag & (DCACHE_LINES - 1);
 
@@ -1715,6 +1739,7 @@ data_cache_access ()
         log_data_cache (addr);
         #endif
 
+        #ifdef IMPLEMENT_FULL_CACHES
         int ninstr = s_crt_nr_cycles_instr;
 
         SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
@@ -1733,7 +1758,11 @@ data_cache_access ()
         memcpy (_save_crt_qemu_instance->cpu_dcache_data[cpu][idx], (void *) addr_in_mem_dev, DCACHE_LINE_BYTES);
 
         RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
+        #else //IMPLEMENT_LATE_CACHES
+        s_crt_ns_misses += NS_DCACHE_MISS;
+        #endif
     }
+    #endif
 
     #ifdef GDB_ENABLED
     {
@@ -1751,7 +1780,16 @@ data_cache_access ()
     }
     #endif
 
-    return &crt_qemu_instance->cpu_dcache_data[cpu][idx][addr & DCACHE_LINE_MASK];
+    #ifdef IMPLEMENT_FULL_CACHES
+        return &crt_qemu_instance->cpu_dcache_data[cpu][idx][addr & DCACHE_LINE_MASK];
+    #else
+        #ifdef ONE_MEM_MODULE
+            return (void *) (tmp_physaddr + cpu_single_env->sc_mem_host_addr);
+        #else
+            return crt_qemu_instance->systemc.systemc_get_mem_addr (
+                        cpu_single_env->qemu.sc_obj, tmp_physaddr);
+        #endif
+    #endif
 }
 
 unsigned long long
@@ -1805,9 +1843,14 @@ write_access (unsigned long addr, int nb, unsigned long val)
 
     g_no_write++;
 
-    #ifndef IMPLEMENT_CACHES
+    #ifndef IMPLEMENT_FULL_CACHES
+    #ifdef ONE_MEM_MODULE
+    void   *host_addr = (void *) (addr + cpu_single_env->sc_mem_host_addr);
+    #else
     void   *host_addr = crt_qemu_instance->systemc.systemc_get_mem_addr (
                 cpu_single_env->qemu.sc_obj, addr);
+    #endif
+
     switch (nb)
     {
     case 1:
@@ -1823,9 +1866,12 @@ write_access (unsigned long addr, int nb, unsigned long val)
         printf ("QEMU, function %s, invalid nb %d\n", __FUNCTION__, nb);
         exit (1);
     }
-    return;
+    #ifdef IMPLEMENT_LATE_CACHES
+    s_crt_ns_misses += NS_WRITE_ACCESS;
+    #endif
     #endif
 
+    #ifdef IMPLEMENT_FULL_CACHES
     int                 cpu = cpu_single_env->cpu_index;
     unsigned long       tag = addr >> DCACHE_LINE_BITS;
     unsigned long       ofs = addr & DCACHE_LINE_MASK;
@@ -1840,9 +1886,12 @@ write_access (unsigned long addr, int nb, unsigned long val)
         _save_crt_qemu_instance->systemc.systemc_qemu_consume_instruction_cycles (
             _save_cpu_single_env->qemu.sc_obj, ninstr);
     }
+    #endif
 
     #ifdef GDB_ENABLED
+    #ifdef IMPLEMENT_FULL_CACHES
     RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
+    #endif
 
     {
     int                 i, nb = g_gdb_state.watchpoints.nb;
@@ -1858,9 +1907,12 @@ write_access (unsigned long addr, int nb, unsigned long val)
         }
     }
 
+    #ifdef IMPLEMENT_FULL_CACHES
     SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
     #endif
+    #endif
 
+    #ifdef IMPLEMENT_FULL_CACHES
     if (tag == _save_crt_qemu_instance->cpu_dcache[cpu][idx]) // addr in cache -> update
     {
         switch (nb)
@@ -1887,6 +1939,7 @@ write_access (unsigned long addr, int nb, unsigned long val)
         _save_cpu_single_env->qemu.sc_obj, addr, val, nb, 0);
 
     RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
+    #endif
 }
 
 void
@@ -1909,6 +1962,7 @@ instruction_cache_access (unsigned long addr)
         g_no_icache_miss++;
         crt_qemu_instance->cpu_icache[cpu][idx] = tag;
 
+        #ifdef IMPLEMENT_FULL_CACHES
         int ninstr = s_crt_nr_cycles_instr;
 
         SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
@@ -1925,6 +1979,9 @@ instruction_cache_access (unsigned long addr)
             addr & ~ICACHE_LINE_MASK, 4, 0);
 
         RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
+        #else //cache late configuration
+        s_crt_ns_misses += NS_ICACHE_MISS;
+        #endif
     }
 }
 
@@ -2014,12 +2071,15 @@ void gdb_verify (unsigned long addr
         return;
 
     #if 0
-    int             ninstr = s_crt_nr_cycles_instr;
-
     SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
+
+    int             ninstr = s_crt_nr_cycles_instr;
+    s_crt_nr_cycles_instr = 0;
+
+    CACHE_LATE_SYNC_MISSES ();
+
     if (ninstr > 0)
     {
-        s_crt_nr_cycles_instr = 0;
         _save_crt_qemu_instance->systemc.systemc_qemu_consume_instruction_cycles (
             _save_cpu_single_env->qemu.sc_obj, ninstr);
     }

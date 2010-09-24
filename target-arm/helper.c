@@ -1077,7 +1077,7 @@ target_phys_addr_t cpu_get_phys_page_debug(CPUState *env, target_ulong addr)
 
 void helper_mark_exclusive(CPUState *env, uint32_t addr)
 {
-    #ifndef IMPLEMENT_CACHES
+    #ifndef IMPLEMENT_FULL_CACHES
         env->mmon_addr = addr;
     #else
         env->mmon_addr = get_phys_addr_gdb (addr);
@@ -1088,7 +1088,7 @@ void helper_mark_exclusive(CPUState *env, uint32_t addr)
 
 int helper_test_exclusive(CPUState *env, uint32_t addr)
 {
-    #ifndef IMPLEMENT_CACHES
+    #ifndef IMPLEMENT_FULL_CACHES
         return (env->mmon_addr != addr);
     #else
         addr = get_phys_addr_gdb (addr);
@@ -1101,7 +1101,7 @@ int helper_test_exclusive(CPUState *env, uint32_t addr)
 
 void helper_clrex(CPUState *env)
 {
-    #ifndef IMPLEMENT_CACHES
+    #ifndef IMPLEMENT_FULL_CACHES
         env->mmon_addr = -1;
     #else
         if (env->mmon_addr == -1)
