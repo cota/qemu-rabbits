@@ -2,7 +2,7 @@
 #define _CFG_H_3T12E_
 
 //#define IMPLEMENT_FULL_CACHES
-//#define IMPLEMENT_LATE_CACHES
+#define IMPLEMENT_LATE_CACHES
 #define ONE_MEM_MODULE
 #define GDB_ENABLED
 

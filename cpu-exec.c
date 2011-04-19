@@ -1566,28 +1566,24 @@ qemu_systemc_write_b (void *opaque, target_phys_addr_t offset, uint32_t value)
 static uint32_t
 qemu_systemc_read_w (void *opaque, target_phys_addr_t offset)
 {
-     //return tswap16 (qemu_systemc_read_all (opaque, offset, 2, 1));
     return qemu_systemc_read_all (opaque, offset, 2, 1);
 }
 
 static void
 qemu_systemc_write_w (void *opaque, target_phys_addr_t offset, uint32_t value)
 {
-     //qemu_systemc_write_all (opaque, offset, tswap16 (value), 2, 1);
     qemu_systemc_write_all (opaque, offset, value, 2, 1);
 }
 
 static uint32_t
 qemu_systemc_read_dw (void *opaque, target_phys_addr_t offset)
 {
-     //return tswap32 (qemu_systemc_read_all (opaque, offset, 4, 1));
     return qemu_systemc_read_all (opaque, offset, 4, 1);
 }
 
 static void
 qemu_systemc_write_dw (void *opaque, target_phys_addr_t offset, uint32_t value)
 {
-     //qemu_systemc_write_all (opaque, offset, tswap32 (value), 4, 1);
     qemu_systemc_write_all (opaque, offset, value, 4, 1);
 }
 
@@ -1753,9 +1749,10 @@ data_cache_access ()
 
         unsigned long addr_in_mem_dev;
         addr_in_mem_dev = _save_crt_qemu_instance->systemc.systemc_qemu_read_memory (
-            _save_cpu_single_env->qemu.sc_obj,
-            addr & ~DCACHE_LINE_MASK, 4, 0);
-        memcpy (_save_crt_qemu_instance->cpu_dcache_data[cpu][idx], (void *) addr_in_mem_dev, DCACHE_LINE_BYTES);
+            _save_cpu_single_env->qemu.sc_obj, addr & ~DCACHE_LINE_MASK,
+            1 << DCACHE_LINE_BITS, 0);
+        memcpy (_save_crt_qemu_instance->cpu_dcache_data[cpu][idx],
+            (void *) addr_in_mem_dev, DCACHE_LINE_BYTES);
 
         RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
         #else //IMPLEMENT_LATE_CACHES
@@ -1976,7 +1973,7 @@ instruction_cache_access (unsigned long addr)
         unsigned long junk;
         junk = _save_crt_qemu_instance->systemc.systemc_qemu_read_memory (
             _save_cpu_single_env->qemu.sc_obj,
-            addr & ~ICACHE_LINE_MASK, 4, 0);
+            addr & ~ICACHE_LINE_MASK, 1 << ICACHE_LINE_BITS, 0);
 
         RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
         #else //cache late configuration
