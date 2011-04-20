@@ -151,7 +151,6 @@ typedef struct CPUTLBEntry {
                                                                         \
     void *next_cpu; /* next CPU sharing TB cache */                     \
     int cpu_index; /* CPU index (informative) */                        \
-    int cpu_platform_index;                                             \
     /* user data */                                                     \
     void *opaque;                                                       \
                                                                         \
@@ -161,7 +160,6 @@ typedef struct CPUTLBEntry {
         void                        *sc_obj;                            \
         unsigned long               fv_percent;                         \
         qemu_instance               *qemu_instance;                     \
-        int                         gdb_cpu_index;                      \
     } qemu;                                                             \
     struct TranslationBlock         *flush_last_tb;                     \
     int                             flush_idx_blocked_tb;               \

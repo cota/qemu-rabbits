@@ -4,6 +4,8 @@
 #include "qemu_systemc.h"
 #include "systemc_imports.h"
 
+struct GDBState;
+
 typedef struct 
 {
     int                     id;
@@ -13,9 +15,9 @@ typedef struct
     unsigned char           (*cpu_dcache_data)[DCACHE_LINES][DCACHE_LINE_BYTES];
     unsigned char           (*cpu_icache_data)[ICACHE_LINES][ICACHE_LINE_BYTES];
     void                    **irqs_systemc;
-    int                     firstcpuindex;
 
     void                    *first_cpu;
+    void                    **envs;
     int                     io_mem_nb;
     void                    *io_mem_write;
     void                    *io_mem_read;
@@ -34,15 +36,18 @@ typedef struct
     unsigned long           init_point_1;
     unsigned long           flush_head;
 
+    struct GDBState         *gdb;
+
+    struct systemc_import_t systemc;
+
     //log
     FILE                    *fim;
     FILE                    *fdm;
     unsigned long           log_cnt_instr;
     unsigned long           log_cnt_data;
-
-    struct systemc_import_t systemc;
 } qemu_instance;
 
 extern qemu_instance        *crt_qemu_instance;
 
 #endif
+

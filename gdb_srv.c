@@ -33,16 +33,14 @@ enum
     TARGET_SIGTRAP = 5
 };
 
-GDBState                g_gdb_state;
-int                     g_nb_gdb_cpus = 0;
-CPUState                *g_gdb_envs[100];
-
 static int              one_cpu = 0;
 static int              saved_c_cpu_index = 0;
 static int              write_watchpoint = 0;
 static unsigned long    watchpoint_new_value = 0;
 static unsigned long    watchpoint_address = 0;
 
+extern qemu_instance    *qemu_instances[10];
+extern int              no_qemu_instances;
 extern unsigned long get_phys_addr_gdb (unsigned long addr);
 
 /* The GDB remote protocol transfers values in target byte order.  This means
@@ -382,7 +380,7 @@ static void hextomem (uint8_t *mem, const char *buf, int len)
     }
 }
 
-static int get_char (GDBState *s)
+static int get_char (struct GDBState *s)
 {
     uint8_t             ch;
     int                 ret;
@@ -413,7 +411,7 @@ static int get_char (GDBState *s)
     return ch;
 }
 
-static void put_buffer (GDBState *s, const uint8_t *buf, int len)
+static void put_buffer (struct GDBState *s, const uint8_t *buf, int len)
 {
     int         ret;
 
@@ -436,7 +434,7 @@ static void put_buffer (GDBState *s, const uint8_t *buf, int len)
     }
 }
 
-static int put_packet_binary (GDBState *s, const char *buf, int len)
+static int put_packet_binary (struct GDBState *s, const char *buf, int len)
 {
     int             csum, i;
     uint8_t         *p;
@@ -470,7 +468,7 @@ static int put_packet_binary (GDBState *s, const char *buf, int len)
 }
 
 
-static int put_packet (GDBState *s, const char *buf)
+static int put_packet (struct GDBState *s, const char *buf)
 {
     #ifdef DEBUG_GDB_SRV
     printf ("response:%s\n", buf);
@@ -480,7 +478,7 @@ static int put_packet (GDBState *s, const char *buf)
 }
 
 
-static void gdb_srv_accept (GDBState *s)
+static void gdb_srv_accept (struct GDBState *s)
 {
     struct sockaddr_in          sockaddr;
     socklen_t                   len;
@@ -494,10 +492,6 @@ static void gdb_srv_accept (GDBState *s)
         return;
     }
     printf ("GDB connected.\n");
-
-    /* set short latency */
-//    int                       val = 1;
-//    setsockopt (fd, IPPROTO_TCP, TCP_NODELAY, (char *) &val, sizeof(val));
 
     s->fd = fd;
 }
@@ -548,18 +542,11 @@ static int gdb_breakpoint_insert (unsigned long addr, unsigned long len, int typ
         int             nb;
         unsigned long   *paddr;
 
-        nb = g_gdb_state.breakpoints.nb;
-        paddr = g_gdb_state.breakpoints.addr;
-        /*
-        int             i;
-        for (i = 0; i < nb; i++)
-            if (addr == paddr[i])
-                break;
-        if (i >= nb)
-        {*/
-            paddr[nb] = addr;
-            g_gdb_state.breakpoints.nb++;
-        //}
+        nb = crt_qemu_instance->gdb->breakpoints.nb;
+        paddr = crt_qemu_instance->gdb->breakpoints.addr;
+        paddr[nb] = addr;
+        crt_qemu_instance->gdb->breakpoints.nb++;
+
         return 0;
     }
 
@@ -570,8 +557,8 @@ static int gdb_breakpoint_insert (unsigned long addr, unsigned long len, int typ
         int                     nb;
         struct watch_el_t       *pwatch;
 
-        nb = g_gdb_state.watchpoints.nb;
-        pwatch = g_gdb_state.watchpoints.watch;
+        nb = crt_qemu_instance->gdb->watchpoints.nb;
+        pwatch = crt_qemu_instance->gdb->watchpoints.watch;
         /*
          int                    i;
          for (i = 0; i < nb; i++)
@@ -582,7 +569,7 @@ static int gdb_breakpoint_insert (unsigned long addr, unsigned long len, int typ
             pwatch[nb].begin_address = addr;
             pwatch[nb].end_address = addr + len;
             pwatch[nb].type = type;
-            g_gdb_state.watchpoints.nb++;
+            crt_qemu_instance->gdb->watchpoints.nb++;
         //}
         return 0;
     }
@@ -602,8 +589,8 @@ static int gdb_breakpoint_remove (unsigned long addr, unsigned long len, int typ
         int                 i, nb;
         unsigned long       *paddr;
 
-        nb = g_gdb_state.breakpoints.nb;
-        paddr = g_gdb_state.breakpoints.addr;
+        nb = crt_qemu_instance->gdb->breakpoints.nb;
+        paddr = crt_qemu_instance->gdb->breakpoints.addr;
         for (i = 0; i < nb; i++)
             if (addr == paddr[i])
                 break;
@@ -611,7 +598,7 @@ static int gdb_breakpoint_remove (unsigned long addr, unsigned long len, int typ
         {
             for ( ;i < nb - 1; i++)
                 paddr[i] = paddr[i + 1];
-            g_gdb_state.breakpoints.nb--;
+            crt_qemu_instance->gdb->breakpoints.nb--;
         }
 
         return 0;
@@ -624,8 +611,8 @@ static int gdb_breakpoint_remove (unsigned long addr, unsigned long len, int typ
         int                     i, nb;
         struct watch_el_t       *pwatch;
 
-        nb = g_gdb_state.watchpoints.nb;
-        pwatch = g_gdb_state.watchpoints.watch;
+        nb = crt_qemu_instance->gdb->watchpoints.nb;
+        pwatch = crt_qemu_instance->gdb->watchpoints.watch;
         for (i = 0; i < nb; i++)
             if (addr == pwatch[i].begin_address &&
                 (addr + len) == pwatch[i].end_address &&
@@ -636,7 +623,7 @@ static int gdb_breakpoint_remove (unsigned long addr, unsigned long len, int typ
         {
             for ( ;i < nb - 1; i++)
                 pwatch[i] = pwatch[i + 1];
-            g_gdb_state.watchpoints.nb--;
+            crt_qemu_instance->gdb->watchpoints.nb--;
         }
 
         return 0;
@@ -648,16 +635,16 @@ static int gdb_breakpoint_remove (unsigned long addr, unsigned long len, int typ
 
 static void gdb_breakpoint_remove_all ()
 {
-    g_gdb_state.breakpoints.nb = 0;
-    g_gdb_state.watchpoints.nb = 0;
+    crt_qemu_instance->gdb->breakpoints.nb = 0;
+    crt_qemu_instance->gdb->watchpoints.nb = 0;
 }
 
-static void gdb_continue (GDBState *s, int running_state)
+static void gdb_continue (struct GDBState *s, int running_state)
 {
     s->running_state = running_state;
 }
 
-static RSState gdb_handle_packet (GDBState *s, const char *line_buf)
+static RSState gdb_handle_packet (struct GDBState *s, const char *line_buf)
 {
     const char              *p;
     int                     ch, type, thread, reg_size, len, res;
@@ -677,7 +664,7 @@ static RSState gdb_handle_packet (GDBState *s, const char *line_buf)
     {
     case '?': //reason the target halted
         snprintf (buf, sizeof (buf), "T%02xthread:%x;",
-            GDB_SIGNAL_TRAP, cpu_single_env->qemu.gdb_cpu_index + 1);
+            GDB_SIGNAL_TRAP, cpu_single_env->cpu_index + 1);
         put_packet (s, buf);
         /* Remove all the breakpoints when this query is issued,
          * because gdb is doing and initial connect and the state
@@ -716,7 +703,7 @@ static RSState gdb_handle_packet (GDBState *s, const char *line_buf)
         len = 0;
         for (addr = 0; addr < num_g_regs; addr++)
         {
-            reg_size = gdb_read_register (g_gdb_envs[s->g_cpu_index],
+            reg_size = gdb_read_register (((CPUState **) crt_qemu_instance->envs)[s->g_cpu_index],
                 mem_buf + len, addr);
             len += reg_size;
         }
@@ -731,7 +718,7 @@ static RSState gdb_handle_packet (GDBState *s, const char *line_buf)
 
         for (addr = 0; addr < num_g_regs && len > 0; addr++)
         {
-            reg_size = gdb_write_register (g_gdb_envs[s->g_cpu_index],
+            reg_size = gdb_write_register (((CPUState **) crt_qemu_instance->envs)[s->g_cpu_index],
                 registers, addr);
             len -= reg_size;
             registers += reg_size;
@@ -851,7 +838,7 @@ static RSState gdb_handle_packet (GDBState *s, const char *line_buf)
     case 'Q':
         if (strcmp(p, "C") == 0)
         {
-            sprintf (buf, "QC%x", cpu_single_env->qemu.gdb_cpu_index + 1);
+            sprintf (buf, "QC%x", cpu_single_env->cpu_index + 1);
             put_packet (s, buf);
             break;
         }
@@ -880,7 +867,7 @@ static RSState gdb_handle_packet (GDBState *s, const char *line_buf)
         if (strcmp (p,"sThreadInfo") == 0)
         {
             report_cpuinfo:
-            if (s->query_cpu_index < g_nb_gdb_cpus)
+            if (s->query_cpu_index < crt_qemu_instance->NOCPUs)
             {
                 snprintf (buf, sizeof (buf), "m%x", s->query_cpu_index + 1);
                 put_packet (s, buf);
@@ -895,13 +882,13 @@ static RSState gdb_handle_packet (GDBState *s, const char *line_buf)
         if (strncmp(p,"ThreadExtraInfo,", 16) == 0)
         {
             thread = strtoull (p + 16, (char **) &p, 16);
-            if (thread > g_nb_gdb_cpus)
+            if (thread > crt_qemu_instance->NOCPUs)
                 put_packet(s, "E14");
             else
             {
                 len = snprintf ((char *) mem_buf, sizeof (mem_buf),
                     "CPU %d [%s]", thread,
-                    g_gdb_envs[thread - 1]->halted ? "halted " : "running");
+                    ((CPUState **)crt_qemu_instance->envs)[thread - 1]->halted ? "halted " : "running");
                 memtohex (buf, mem_buf, len);
                 put_packet (s, buf);
             }
@@ -929,7 +916,7 @@ static RSState gdb_handle_packet (GDBState *s, const char *line_buf)
 
     case 'T': //TXX - thread alive
         thread = strtoull (p, (char **) &p, 16);
-        if (thread > 0 && thread <= g_nb_gdb_cpus)
+        if (thread > 0 && thread <= crt_qemu_instance->NOCPUs)
              put_packet(s, "OK");
         else
             put_packet(s, "E22");
@@ -1024,7 +1011,7 @@ static RSState gdb_handle_packet (GDBState *s, const char *line_buf)
     return RS_IDLE;
 }
 
-static void gdb_read_byte (GDBState *s, int ch)
+static void gdb_read_byte (struct GDBState *s, int ch)
 {
     int                 i, csum;
     uint8_t             reply;
@@ -1087,7 +1074,7 @@ void gdb_loop (int idx_watch, int bwrite, unsigned long new_val)
 {
     char              buf[256], buf1[256];
     int               i, nb;
-    GDBState          *s = &g_gdb_state;
+    struct GDBState   *s = crt_qemu_instance->gdb;
     unsigned char     save_b_use_backdoor = b_use_backdoor;
 
     b_use_backdoor = 1;
@@ -1148,7 +1135,7 @@ void gdb_loop (int idx_watch, int bwrite, unsigned long new_val)
             }
         }
 
-        sprintf (buf1, "thread:%x;", cpu_single_env->qemu.gdb_cpu_index + 1);
+        sprintf (buf1, "thread:%x;", cpu_single_env->cpu_index + 1);
         strcat (buf, buf1);
 
         put_packet (s, buf);
@@ -1167,7 +1154,7 @@ void gdb_loop (int idx_watch, int bwrite, unsigned long new_val)
     }
 
 
-    s->g_cpu_index = cpu_single_env->qemu.gdb_cpu_index;
+    s->g_cpu_index = cpu_single_env->cpu_index;
     s->state = RS_IDLE;
     s->running_state = 0;
     while (s->running_state == STATE_GDB_CONTROL)
@@ -1193,33 +1180,41 @@ void gdb_loop (int idx_watch, int bwrite, unsigned long new_val)
 
 void close_gdb_sockets ()
 {
-    if (g_gdb_state.fd)
-        close (g_gdb_state.fd);
-    g_gdb_state.fd = 0;
-    
-    if (g_gdb_state.srv_sock_fd)
-        close (g_gdb_state.srv_sock_fd);
-    g_gdb_state.srv_sock_fd = 0;
+    int                 idx;
+    for (idx = 0; idx < no_qemu_instances; idx++)
+    {
+        if (qemu_instances[idx]->gdb->fd)
+        {
+            close (qemu_instances[idx]->gdb->fd);
+            qemu_instances[idx]->gdb->fd = 0;
+        }
+
+        if (qemu_instances[idx]->gdb->srv_sock_fd)
+        {
+            close (qemu_instances[idx]->gdb->srv_sock_fd);
+            qemu_instances[idx]->gdb->srv_sock_fd = 0;
+        }
+    }
 }
 
-int gdb_srv_start_and_wait (int port)
+int gdb_srv_start_and_wait (qemu_instance *pinstance, int port)
 {
-    memset (&g_gdb_state, 0, sizeof (GDBState));
-    g_gdb_state.running_state = STATE_DETACH;
+    pinstance->gdb->running_state = STATE_DETACH;
 
-    g_gdb_state.srv_sock_fd = gdb_srv_open (port);
-    if (g_gdb_state.srv_sock_fd < 0)
+    pinstance->gdb->srv_sock_fd = gdb_srv_open (port);
+    if (pinstance->gdb->srv_sock_fd < 0)
     {
         printf ("Error: Cannot open port %d in %s\n", port, __FUNCTION__);
         return -1;
     }
 
     printf ("Waiting for a GDB connection on port %d (arch=%s) ...\n", port, TARGET_ARCH);
-    gdb_srv_accept (&g_gdb_state);
+    gdb_srv_accept (pinstance->gdb);
 
-    g_gdb_state.running_state = STATE_INIT;
-    g_gdb_state.c_cpu_index = -1;
+    pinstance->gdb->running_state = STATE_INIT;
+    pinstance->gdb->c_cpu_index = -1;
     atexit (close_gdb_sockets);
 
     return 0;
 }
+

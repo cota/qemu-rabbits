@@ -1477,7 +1477,7 @@ uint32_t helper_get_cp15(CPUState *env, uint32_t insn)
                 case 3: /* TLB type register.  */
                     return 0; /* No lockable TLB entries.  */
                 case 5: /* CPU ID */
-					 return env->cpu_platform_index;
+					 return env->cpu_index;
                 default:
                     goto bad_reg;
                 }

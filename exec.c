@@ -327,7 +327,7 @@ void cpu_exec_init(CPUState *env)
 
     if (!crt_qemu_instance->init_point_1)
     {
-			  crt_qemu_instance->init_point_1 = 1;
+        crt_qemu_instance->init_point_1 = 1;
         code_gen_ptr = code_gen_buffer;
         page_init();
         io_mem_init();

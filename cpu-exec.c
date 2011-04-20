@@ -1763,8 +1763,8 @@ data_cache_access ()
 
     #ifdef GDB_ENABLED
     {
-    int                 i, nb = g_gdb_state.watchpoints.nb;
-    struct watch_el_t   *pwatch = g_gdb_state.watchpoints.watch;
+    int                 i, nb = crt_qemu_instance->gdb->watchpoints.nb;
+    struct watch_el_t   *pwatch = crt_qemu_instance->gdb->watchpoints.watch;
 
     for (i = 0; i < nb; i++)
         if (addr >= pwatch[i].begin_address && addr < pwatch[i].end_address &&
@@ -1891,8 +1891,8 @@ write_access (unsigned long addr, int nb, unsigned long val)
     #endif
 
     {
-    int                 i, nb = g_gdb_state.watchpoints.nb;
-    struct watch_el_t   *pwatch = g_gdb_state.watchpoints.watch;
+    int                 i, nb = crt_qemu_instance->gdb->watchpoints.nb;
+    struct watch_el_t   *pwatch = crt_qemu_instance->gdb->watchpoints.watch;
 
     for (i = 0; i < nb; i++)
         if (addr >= pwatch[i].begin_address && addr < pwatch[i].end_address &&
@@ -2011,22 +2011,22 @@ qemu_invalidate_address (qemu_instance *instance, unsigned long addr, int src_id
 
 static int gdb_condition (unsigned long addr)
 {
-    int                 gdbrs = g_gdb_state.running_state;
-    int                 gdbcpu = g_gdb_state.c_cpu_index;
+    int                 gdbrs = crt_qemu_instance->gdb->running_state;
+    int                 gdbcpu = crt_qemu_instance->gdb->c_cpu_index;
     int                 i, nb;
     unsigned long       *paddr;
     
     if (gdbrs == STATE_DETACH)
         return 0;
 
-    if (cpu_single_env->qemu.gdb_cpu_index != gdbcpu && gdbcpu != - 1)
+    if (cpu_single_env->cpu_index != gdbcpu && gdbcpu != - 1)
         return 0;
 
     if (gdbrs == STATE_STEP || gdbrs == STATE_INIT)
         return 1;
 
-    nb = g_gdb_state.breakpoints.nb;
-    paddr = g_gdb_state.breakpoints.addr;
+    nb = crt_qemu_instance->gdb->breakpoints.nb;
+    paddr = crt_qemu_instance->gdb->breakpoints.addr;
     for (i = 0; i < nb; i++)
         if (addr == paddr[i])
             return 1;

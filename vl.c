@@ -42,6 +42,8 @@
 
 extern CPUState         *cpu_single_env;
 qemu_instance           *crt_qemu_instance = NULL;
+qemu_instance           *qemu_instances[10];
+int                     no_qemu_instances = 0;
 
 void
 sigsegv_h (int x)
@@ -60,15 +62,23 @@ void
 sigint_h (int x)
 {
     printf ("sigint_h\n");
-    if (g_gdb_state.running_state == STATE_DETACH)
+
+    if (!start_debug ())
         exit (2);
-    g_gdb_state.running_state = STATE_STEP;
 }
 
-void start_debug (void)
+int start_debug (void)
 {
-    if (g_gdb_state.running_state != STATE_DETACH)
-        g_gdb_state.running_state = STATE_STEP;
+    int                 idx, bstart = 0;
+    for (idx = 0; idx < no_qemu_instances; idx++)
+    {
+        if (qemu_instances[idx]->gdb->running_state != STATE_DETACH)
+        {
+            qemu_instances[idx]->gdb->running_state = STATE_STEP;
+            bstart = 1;
+        }
+    }
+    return bstart;
 }
 
 static uint32_t default_ioport_readb(void *opaque, uint32_t address)
@@ -379,8 +389,7 @@ void glue(TARGET_ARCH_,_generic_machine_init) (int ram_size, const char *cpu_mod
 void exec_c_init (void);
 
 void *
-glue(TARGET_ARCH_, _qemu_init) (int id, int ncpu, int indexfirstcpu,
-    const char *cpu_model, int _ramsize, 
+glue(TARGET_ARCH_, _qemu_init) (int id, int ncpu, const char *cpu_model, int _ramsize,
     struct qemu_import_t *qi, struct systemc_import_t *systemc_fcs)
 {
     signal (SIGSEGV, sigsegv_h);
@@ -397,7 +406,7 @@ glue(TARGET_ARCH_, _qemu_init) (int id, int ncpu, int indexfirstcpu,
     qi->qemu_irq_update = (qemu_irq_update_fc_t) qemu_irq_update;
     qi->qemu_get_counters = (qemu_get_counters_fc_t) qemu_get_counters;
     qi->qemu_invalidate_address = (qemu_invalidate_address_fc_t) qemu_invalidate_address;
-    qi->gdb_srv_start_and_wait = gdb_srv_start_and_wait;
+    qi->gdb_srv_start_and_wait = (gdb_srv_start_and_wait_fc_t) gdb_srv_start_and_wait;
 
     //init current qemu simulator "object"
     crt_qemu_instance = malloc (sizeof (qemu_instance));
@@ -405,7 +414,6 @@ glue(TARGET_ARCH_, _qemu_init) (int id, int ncpu, int indexfirstcpu,
     crt_qemu_instance->systemc = *systemc_fcs;
     crt_qemu_instance->NOCPUs = ncpu;
     crt_qemu_instance->id = id;
-    crt_qemu_instance->firstcpuindex = indexfirstcpu;
     crt_qemu_instance->ram_size = _ramsize;
     crt_qemu_instance->io_mem_opaque = malloc (IO_MEM_NB_ENTRIES * sizeof (void *));
     memset (crt_qemu_instance->io_mem_opaque, 0, IO_MEM_NB_ENTRIES * sizeof (void *));
@@ -420,22 +428,25 @@ glue(TARGET_ARCH_, _qemu_init) (int id, int ncpu, int indexfirstcpu,
     crt_qemu_instance->ioport_write_table = malloc (3 * MAX_IOPORTS * sizeof (IOPortWriteFunc *));
     memset (crt_qemu_instance->ioport_write_table, 0, 3 * MAX_IOPORTS * sizeof (IOPortWriteFunc *));
     exec_c_init ();
+    qemu_instances[no_qemu_instances++] = crt_qemu_instance;
 
     init_ioports ();
     glue(TARGET_ARCH_,_generic_machine_init) (_ramsize, cpu_model);
     qemu_init_caches ();
 
-    //gdb server
-    g_gdb_state.running_state = STATE_DETACH;
-    CPUState            *env;
-    int                 i;
-    for (i = 0, env = (CPUState *) crt_qemu_instance->first_cpu; env != NULL;
-        env = env->next_cpu, i++)
+    CPUState    *penv = (CPUState *) crt_qemu_instance->first_cpu;
+    int         cpu_index = 0;
+    crt_qemu_instance->envs = malloc (ncpu * sizeof (CPUState *));
+    while (penv)
     {
-        env->qemu.gdb_cpu_index = g_nb_gdb_cpus + i;
-        g_gdb_envs[env->qemu.gdb_cpu_index] = env;
+        crt_qemu_instance->envs[cpu_index++] = penv;
+        penv = penv->next_cpu;
     }
-    g_nb_gdb_cpus += i;
+
+    //gdb server
+    crt_qemu_instance->gdb = malloc (sizeof (struct GDBState));
+    memset (crt_qemu_instance->gdb, 0, sizeof (struct GDBState));
+    crt_qemu_instance->gdb->running_state = STATE_DETACH;
 
     return crt_qemu_instance;
 }
@@ -498,3 +509,4 @@ log_data_cache (unsigned long addr_miss)
         (unsigned int) addr_miss, crt_cycle);
     fflush (crt_qemu_instance->fdm);
 }
+

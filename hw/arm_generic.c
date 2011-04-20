@@ -70,7 +70,6 @@ arm_generic_machine_init (int ram_size, const char *cpu_model)
         }
 		
         env->mmon_addr = -1;
-        env->cpu_platform_index = i + crt_qemu_instance->firstcpuindex;
 	    env->qemu.fv_percent = 100;
         env->qemu.qemu_instance = crt_qemu_instance;
         pic = arm_pic_init_cpu (env);
@@ -82,3 +81,4 @@ arm_generic_machine_init (int ram_size, const char *cpu_model)
     cpu_register_physical_memory (0, ram_size, IO_MEM_RAM);
     cpu_register_physical_memory (0x85000000, 0x1000, ram_size + IO_MEM_RAM);
 }
+

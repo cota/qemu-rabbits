@@ -29,7 +29,7 @@ enum
     STATE_INIT,
 };
 
-typedef struct
+struct GDBState
 {
     int                 fd;
     int                 srv_sock_fd;
@@ -59,13 +59,9 @@ typedef struct
         } watch [100];
         int             nb;
     } watchpoints;
-} GDBState;
+};
 
-extern GDBState         g_gdb_state;
-extern int              g_nb_gdb_cpus;
-extern CPUState         *g_gdb_envs[100];
-
-int gdb_srv_start_and_wait (int port);
+int gdb_srv_start_and_wait (qemu_instance *pinstance, int port);
 void gdb_loop (int idx_watch, int bwrite, unsigned long new_val);
 
 #endif
