@@ -76,8 +76,7 @@ void sparc_generic_machine_init (int ram_size, const char *cpu_model)
             fprintf (stderr, "qemu: Unable to find Sparc CPU definition\n");
             exit (1);
         }
-        env->cpu_platform_index = i + crt_qemu_instance->firstcpuindex;
-		cpu_sparc_set_id (env, env->cpu_platform_index);
+		cpu_sparc_set_id (env, env->cpu_index);
 
 		env->qemu.fv_percent = 100;
         env->qemu.qemu_instance = crt_qemu_instance;
