@@ -33,6 +33,8 @@ typedef struct
     int                     ram_size;
     void                    *tb_phys_hash;
     void                    *tbs;
+    uint8_t                 code_gen_buffer[CODE_GEN_BUFFER_SIZE];
+    uint8_t                 *code_gen_ptr;
     unsigned long           init_point_1;
     unsigned long           flush_head;
 

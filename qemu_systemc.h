@@ -3,6 +3,8 @@
 
 #include <cfg.h>
 
+#define CODE_GEN_BUFFER_SIZE     (8 * 1024 * 1024)
+
 //#define COUNT_INSTR_FOR_STATISTICS
 
 //#define LOG_INFO_FOR_DEBUG

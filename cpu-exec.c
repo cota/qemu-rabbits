@@ -193,16 +193,18 @@ static TranslationBlock *tb_find_slow(target_ulong pc,
         /* don't forget to invalidate previous TB info */
         env->tb_invalidated_flag = 1;
     }
-    tc_ptr = code_gen_ptr;
+    tc_ptr = crt_qemu_instance->code_gen_ptr;
     tb->tc_ptr = tc_ptr;
     tb->cs_base = cs_base;
     tb->flags = flags;
     SAVE_GLOBALS();
     cpu_gen_code(env, tb, &code_gen_size);
     RESTORE_GLOBALS();
-    code_gen_ptr = (void *)(((unsigned long)code_gen_ptr + code_gen_size + CODE_GEN_ALIGN - 1) & ~(CODE_GEN_ALIGN - 1));
+    crt_qemu_instance->code_gen_ptr =
+        (void *)(((unsigned long)crt_qemu_instance->code_gen_ptr +
+        code_gen_size + CODE_GEN_ALIGN - 1) & ~(CODE_GEN_ALIGN - 1));
 
-    tb->flush_tc_end = code_gen_ptr;
+    tb->flush_tc_end = crt_qemu_instance->code_gen_ptr;
 
     /* check next page if needed */
     virt_page2 = (pc + tb->size - 1) & TARGET_PAGE_MASK;
@@ -1781,10 +1783,10 @@ data_cache_access ()
         return &crt_qemu_instance->cpu_dcache_data[cpu][idx][addr & DCACHE_LINE_MASK];
     #else
         #ifdef ONE_MEM_MODULE
-            return (void *) (tmp_physaddr + cpu_single_env->sc_mem_host_addr);
+            return (void *) (addr + cpu_single_env->sc_mem_host_addr);
         #else
             return crt_qemu_instance->systemc.systemc_get_mem_addr (
-                        cpu_single_env->qemu.sc_obj, tmp_physaddr);
+                        cpu_single_env->qemu.sc_obj, addr);
         #endif
     #endif
 }

@@ -115,6 +115,7 @@ static inline int tlb_set_page(CPUState *env, target_ulong vaddr,
    alpha : signed 23 bits
 */
 
+#ifndef CODE_GEN_BUFFER_SIZE
 #if defined(__alpha__)
 #define CODE_GEN_BUFFER_SIZE     (2 * 1024 * 1024)
 #elif defined(__ia64)
@@ -122,7 +123,8 @@ static inline int tlb_set_page(CPUState *env, target_ulong vaddr,
 #elif defined(__powerpc__)
 #define CODE_GEN_BUFFER_SIZE     (6 * 1024 * 1024)
 #else
-#define CODE_GEN_BUFFER_SIZE     (16 * 1024 * 1024)
+#define CODE_GEN_BUFFER_SIZE     (8 * 1024 * 1024)
+#endif
 #endif
 
 //#define CODE_GEN_BUFFER_SIZE     (128 * 1024)
@@ -209,9 +211,6 @@ TranslationBlock *tb_alloc(target_ulong pc);
 void tb_flush(CPUState *env);
 void tb_link_phys(TranslationBlock *tb,
                   target_ulong phys_pc, target_ulong phys_page2);
-
-extern uint8_t code_gen_buffer[CODE_GEN_BUFFER_SIZE];
-extern uint8_t *code_gen_ptr;
 
 #if defined(USE_DIRECT_JUMP)
 

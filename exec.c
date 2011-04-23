@@ -102,9 +102,6 @@ extern void just_synchronize (void);
 /* any access to the tbs or the page table must use this lock */
 /* spinlock_t tb_lock = SPIN_LOCK_UNLOCKED; */
 
-uint8_t code_gen_buffer[CODE_GEN_BUFFER_SIZE] __attribute__((aligned (32)));
-uint8_t *code_gen_ptr;
-
 uint8_t *phys_ram_base = NULL;
 
 /* current CPU in the current thread. It is only valid inside
@@ -194,18 +191,20 @@ static void page_init(void)
         GetSystemInfo(&system_info);
         qemu_real_host_page_size = system_info.dwPageSize;
 
-        VirtualProtect(code_gen_buffer, sizeof(code_gen_buffer),
-                       PAGE_EXECUTE_READWRITE, &old_protect);
+        VirtualProtect(crt_qemu_instance->code_gen_buffer,
+            sizeof(crt_qemu_instance->code_gen_buffer),
+            PAGE_EXECUTE_READWRITE, &old_protect);
     }
 #else
     qemu_real_host_page_size = getpagesize();
     {
         unsigned long start, end;
 
-        start = (unsigned long)code_gen_buffer;
+        start = (unsigned long) crt_qemu_instance->code_gen_buffer;
         start &= ~(qemu_real_host_page_size - 1);
 
-        end = (unsigned long)code_gen_buffer + sizeof(code_gen_buffer);
+        end = (unsigned long)crt_qemu_instance->code_gen_buffer
+            + sizeof(crt_qemu_instance->code_gen_buffer);
         end += qemu_real_host_page_size - 1;
         end &= ~(qemu_real_host_page_size - 1);
 
@@ -328,7 +327,7 @@ void cpu_exec_init(CPUState *env)
     if (!crt_qemu_instance->init_point_1)
     {
         crt_qemu_instance->init_point_1 = 1;
-        code_gen_ptr = code_gen_buffer;
+        crt_qemu_instance->code_gen_ptr = crt_qemu_instance->code_gen_buffer;
         page_init();
         io_mem_init();
     }
@@ -381,9 +380,12 @@ void tb_flush(CPUState *env1)
 
     #if defined(DEBUG_FLUSH)
     printf ("qemu: flush code_size=%ld nb_tbs=%d avg_tb_size=%ld\n",
-        (unsigned long)(code_gen_ptr - code_gen_buffer),
-        crt_qemu_instance->nb_tbs, crt_qemu_instance->nb_tbs > 0 ?
-        ((unsigned long) (code_gen_ptr - code_gen_buffer)) / crt_qemu_instance->nb_tbs : 0);
+        (unsigned long)(crt_qemu_instance->code_gen_ptr -
+            crt_qemu_instance->code_gen_buffer),
+        (crt_qemu_instance->nb_tbs, crt_qemu_instance->nb_tbs > 0) ?
+        ((unsigned long) (crt_qemu_instance->code_gen_ptr -
+            crt_qemu_instance->code_gen_buffer))
+            / crt_qemu_instance->nb_tbs : 0);
     #endif
 
     tb = env1->flush_last_tb;
@@ -443,7 +445,7 @@ void tb_flush(CPUState *env1)
     memset (macro_tb_phys_hash, 0, CODE_GEN_PHYS_HASH_SIZE * sizeof (void *));
     page_flush_tb ();
 
-    code_gen_ptr = code_gen_buffer;
+    crt_qemu_instance->code_gen_ptr = crt_qemu_instance->code_gen_buffer;
     /* XXX: flush processor icache at this point if cache flush is
        expensive */
     tb_flush_count++;
@@ -707,13 +709,15 @@ static void tb_gen_code(CPUState *env,
         /* cannot fail at this point */
         tb = tb_alloc(pc);
     }
-    tc_ptr = code_gen_ptr;
+    tc_ptr = crt_qemu_instance->code_gen_ptr;
     tb->tc_ptr = tc_ptr;
     tb->cs_base = cs_base;
     tb->flags = flags;
     tb->cflags = cflags;
     cpu_gen_code(env, tb, &code_gen_size);
-    code_gen_ptr = (void *)(((unsigned long)code_gen_ptr + code_gen_size + CODE_GEN_ALIGN - 1) & ~(CODE_GEN_ALIGN - 1));
+    crt_qemu_instance->code_gen_ptr =
+        (void *)(((unsigned long)crt_qemu_instance->code_gen_ptr +
+        code_gen_size + CODE_GEN_ALIGN - 1) & ~(CODE_GEN_ALIGN - 1));
 
     /* check next page if needed */
     virt_page2 = (pc + tb->size - 1) & TARGET_PAGE_MASK;
@@ -1009,7 +1013,8 @@ TranslationBlock *tb_alloc(target_ulong pc)
     TranslationBlock *tb;
 
 //    if (crt_qemu_instance->nb_tbs >= CODE_GEN_MAX_BLOCKS ||
-//        (code_gen_ptr - code_gen_buffer) >= CODE_GEN_BUFFER_MAX_SIZE)
+//        (crt_qemu_instance->code_gen_ptr - crt_qemu_instance->code_gen_buffer)
+//          >= CODE_GEN_BUFFER_MAX_SIZE)
 //        return NULL;
 
     int         i = crt_qemu_instance->nb_tbs;
@@ -1020,18 +1025,21 @@ TranslationBlock *tb_alloc(target_ulong pc)
     crt_qemu_instance->nb_tbs = i + 1;
 
     tb = (TranslationBlock *) crt_qemu_instance->flush_head;
-    while ((code_gen_ptr - code_gen_buffer) < CODE_GEN_BUFFER_MAX_SIZE)
+    while ((crt_qemu_instance->code_gen_ptr - crt_qemu_instance->code_gen_buffer)
+            < CODE_GEN_BUFFER_MAX_SIZE)
     {
         while (tb &&
-            ((code_gen_ptr + 2048 < tb->tc_ptr) || (code_gen_ptr >= tb->flush_tc_end)))
+            ((crt_qemu_instance->code_gen_ptr + 2048 < tb->tc_ptr) ||
+             (crt_qemu_instance->code_gen_ptr >= tb->flush_tc_end)))
             tb = tb->flush_next;
 
         if (tb == NULL)
             break;
 
-        code_gen_ptr = tb->flush_tc_end;
+        crt_qemu_instance->code_gen_ptr = tb->flush_tc_end;
     }
-    if ((code_gen_ptr - code_gen_buffer) >= CODE_GEN_BUFFER_MAX_SIZE)
+    if ((crt_qemu_instance->code_gen_ptr - crt_qemu_instance->code_gen_buffer)
+            >= CODE_GEN_BUFFER_MAX_SIZE)
         return NULL;
 
     tb = &macro_tbs[i];
@@ -1097,8 +1105,8 @@ TranslationBlock *tb_find_pc(unsigned long tc_ptr)
 
     if (crt_qemu_instance->nb_tbs <= 0)
         return NULL;
-    if (tc_ptr < (unsigned long)code_gen_buffer ||
-        tc_ptr >= (unsigned long)code_gen_ptr)
+    if (tc_ptr < (unsigned long)crt_qemu_instance->code_gen_buffer ||
+        tc_ptr >= (unsigned long)crt_qemu_instance->code_gen_ptr)
         return NULL;
     /* binary search (cf Knuth) */
     m_min = 0;
@@ -3094,8 +3102,8 @@ void dump_exec_info(FILE *f,
 								crt_qemu_instance->nb_tbs ? target_code_size / crt_qemu_instance->nb_tbs : 0,
                 max_target_code_size);
     cpu_fprintf(f, "TB avg host size    %d bytes (expansion ratio: %0.1f)\n",
-								crt_qemu_instance->nb_tbs ? (code_gen_ptr - code_gen_buffer) / crt_qemu_instance->nb_tbs : 0,
-                target_code_size ? (double) (code_gen_ptr - code_gen_buffer) / target_code_size : 0);
+								crt_qemu_instance->nb_tbs ? (crt_qemu_instance->code_gen_ptr - crt_qemu_instance->code_gen_buffer) / crt_qemu_instance->nb_tbs : 0,
+                target_code_size ? (double) (crt_qemu_instance->code_gen_ptr - crt_qemu_instance->code_gen_buffer) / target_code_size : 0);
     cpu_fprintf(f, "cross page TB count %d (%d%%)\n",
             cross_page,
             crt_qemu_instance->nb_tbs ? (cross_page * 100) / crt_qemu_instance->nb_tbs : 0);
