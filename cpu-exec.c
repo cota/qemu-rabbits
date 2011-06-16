@@ -1840,6 +1840,9 @@ write_access (unsigned long addr, int nb, unsigned long val)
     if (nb != 1 && nb != 2 && nb != 4)
         printf ("wrong nb in %s\n", __FUNCTION__);
 
+    if (addr >= cpu_single_env->ram_size)
+        printf ("Bad write memory access in qemu, addr=%ld!\n", addr);
+
     g_no_write++;
 
     #ifndef IMPLEMENT_FULL_CACHES

@@ -72,6 +72,7 @@ arm_generic_machine_init (int ram_size, const char *cpu_model)
         env->mmon_addr = -1;
 	    env->qemu.fv_percent = 100;
         env->qemu.qemu_instance = crt_qemu_instance;
+        env->ram_size = ram_size;
         pic = arm_pic_init_cpu (env);
         env->v7m.nvic = (void *) pic[ARM_PIC_CPU_IRQ];
         crt_qemu_instance->irqs_systemc[i] = pic[ARM_PIC_CPU_IRQ];

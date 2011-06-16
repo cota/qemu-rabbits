@@ -2252,7 +2252,7 @@ static void notdirty_mem_writeb(void *opaque, target_phys_addr_t addr, uint32_t 
     }
     #endif
 
-    #ifdef ONE_MEM_MODULE
+    #if defined(ONE_MEM_MODULE) && !defined(IMPLEMENT_CACHES)
     stb_p((uint8_t *)(long)addr + cpu_single_env->sc_mem_host_addr, val);
     #else
     write_access (ram_addr, 1, val);
@@ -2286,7 +2286,7 @@ static void notdirty_mem_writew(void *opaque, target_phys_addr_t addr, uint32_t 
     }
     #endif
 
-    #ifdef ONE_MEM_MODULE
+    #if defined(ONE_MEM_MODULE) && !defined(IMPLEMENT_CACHES)
     stw_p((uint8_t *)(long)addr + cpu_single_env->sc_mem_host_addr, val);
     #else
     write_access (ram_addr, 2, val);
@@ -2320,7 +2320,7 @@ static void notdirty_mem_writel(void *opaque, target_phys_addr_t addr, uint32_t 
     }
     #endif
 
-    #ifdef ONE_MEM_MODULE
+    #if defined(ONE_MEM_MODULE) && !defined(IMPLEMENT_CACHES)
     stl_p((uint8_t *)(long)addr + cpu_single_env->sc_mem_host_addr, val);
     #else
     write_access (ram_addr, 4, val);
@@ -2936,7 +2936,7 @@ void stl_phys_notdirty(target_phys_addr_t addr, uint32_t val)
         ptr = phys_ram_base + (pd & TARGET_PAGE_MASK) +
             (addr & ~TARGET_PAGE_MASK);
 
-        #ifdef ONE_MEM_MODULE
+        #if defined(ONE_MEM_MODULE) && !defined(IMPLEMENT_CACHES)
         stl_p(ptr + cpu_single_env->sc_mem_host_addr, val);
         #else
         write_access (ptr - phys_ram_base, 4, val);
@@ -2972,7 +2972,7 @@ void stq_phys_notdirty(target_phys_addr_t addr, uint64_t val)
         ptr = phys_ram_base + (pd & TARGET_PAGE_MASK) +
             (addr & ~TARGET_PAGE_MASK);
 
-        #ifdef ONE_MEM_MODULE
+        #if defined(ONE_MEM_MODULE) && !defined(IMPLEMENT_CACHES)
         stq_p(ptr + cpu_single_env->sc_mem_host_addr, val);
         #else
         write_access (ptr - phys_ram_base, 8, val);
@@ -3004,7 +3004,7 @@ void stl_phys(target_phys_addr_t addr, uint32_t val)
         /* RAM case */
         ptr = phys_ram_base + addr1;
 
-        #ifdef ONE_MEM_MODULE
+        #if defined(ONE_MEM_MODULE) && !defined(IMPLEMENT_CACHES)
         stl_p(ptr + cpu_single_env->sc_mem_host_addr, val);
         #else
         write_access (ptr - phys_ram_base, 4, val);

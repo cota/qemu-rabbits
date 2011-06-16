@@ -1082,7 +1082,7 @@ void helper_mark_exclusive(CPUState *env, uint32_t addr)
     #else
         env->mmon_addr = get_phys_addr_gdb (addr);
         crt_qemu_instance->systemc.memory_mark_exclusive (
-            env->cpu_platform_index, env->mmon_addr);
+            env->cpu_index, env->mmon_addr);
     #endif
 }
 
@@ -1095,7 +1095,7 @@ int helper_test_exclusive(CPUState *env, uint32_t addr)
 
         return (env->mmon_addr == -1) || (env->mmon_addr != addr) ||
             crt_qemu_instance->systemc.memory_test_exclusive (
-            env->cpu_platform_index, addr);
+            env->cpu_index, addr);
     #endif
 }
 
@@ -1108,7 +1108,7 @@ void helper_clrex(CPUState *env)
             return;
         
         crt_qemu_instance->systemc.memory_clear_exclusive (
-                env->cpu_platform_index, env->mmon_addr);
+                env->cpu_index, env->mmon_addr);
         env->mmon_addr = -1;
     #endif
 }
