@@ -37,5 +37,16 @@
 #define ICACHE_LINE_BYTES	CACHE_BITS_TO_BYTES(ICACHE_LINE_BITS)
 #define ICACHE_LINE_MASK	CACHE_BITS_TO_MASK (ICACHE_LINE_BITS)
 
+#define __cache_addr_to_tag(addr, bits)	((addr) >> (bits))
+#define __cache_tag_to_idx(tag, lines)	((tag) & ((lines) - 1))
+#define __cache_addr_to_ofs(addr, mask)	((addr) & (mask))
+
+#define dcache_addr_to_tag(addr)	__cache_addr_to_tag(addr, DCACHE_LINE_BITS)
+#define dcache_tag_to_idx(tag)		__cache_tag_to_idx (tag,  DCACHE_LINES)
+#define dcache_addr_to_ofs(addr)	__cache_addr_to_ofs(addr, DCACHE_LINE_MASK)
+
+#define icache_addr_to_tag(addr)	__cache_addr_to_tag(addr, ICACHE_LINE_BITS)
+#define icache_tag_to_idx(tag)		__cache_tag_to_idx (tag,  ICACHE_LINES)
+#define icache_addr_to_ofs(addr)	__cache_addr_to_ofs(addr, ICACHE_LINE_MASK)
 
 #endif

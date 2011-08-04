@@ -1725,8 +1725,8 @@ data_cache_access ()
     unsigned long tag;
 
     cpu = cpu_single_env->cpu_index;
-    tag = addr >> DCACHE_LINE_BITS;
-    idx = tag & (DCACHE_LINES - 1);
+    tag = dcache_addr_to_tag(addr);
+    idx = dcache_tag_to_idx(tag);
 
     if (tag != crt_qemu_instance->cpu_dcache[cpu][idx])
     {
@@ -1780,7 +1780,7 @@ data_cache_access ()
     #endif
 
     #ifdef IMPLEMENT_FULL_CACHES
-        return &crt_qemu_instance->cpu_dcache_data[cpu][idx][addr & DCACHE_LINE_MASK];
+        return &crt_qemu_instance->cpu_dcache_data[cpu][idx][dcache_addr_to_ofs(addr)];
     #else
         #ifdef ONE_MEM_MODULE
             return (void *) (addr + cpu_single_env->sc_mem_host_addr);
@@ -1875,9 +1875,9 @@ write_access (unsigned long addr, int nb, unsigned long val)
 
     #ifdef IMPLEMENT_FULL_CACHES
     int                 cpu = cpu_single_env->cpu_index;
-    unsigned long       tag = addr >> DCACHE_LINE_BITS;
-    unsigned long       ofs = addr & DCACHE_LINE_MASK;
-    int                 idx = tag & (DCACHE_LINES - 1);
+    unsigned long       tag = dcache_addr_to_tag(addr);
+    unsigned long       ofs = dcache_addr_to_ofs(addr);
+    int                 idx = dcache_tag_to_idx(tag);
 
     int ninstr = s_crt_nr_cycles_instr;
 
@@ -1956,8 +1956,8 @@ void
 instruction_cache_access (unsigned long addr)
 {
     int cpu = cpu_single_env->cpu_index;
-    unsigned long tag = addr >> ICACHE_LINE_BITS;
-    int idx = tag & (ICACHE_LINES - 1);
+    unsigned long tag = icache_addr_to_tag(addr);
+    int idx = icache_tag_to_idx(tag);
 
     if (tag != crt_qemu_instance->cpu_icache[cpu][idx])
     {
@@ -1998,10 +1998,10 @@ instruction_cache_access_n (unsigned long addr, int n)
 void
 qemu_invalidate_address (qemu_instance *instance, unsigned long addr, int src_idx)
 {
-    unsigned long           dtag = addr >> DCACHE_LINE_BITS;
-    int                     didx = dtag & (DCACHE_LINES - 1);
-    unsigned long           itag = addr >> ICACHE_LINE_BITS;
-    int                     iidx = itag & (ICACHE_LINES - 1);
+    unsigned long           dtag = dcache_addr_to_tag(addr);
+    int                     didx = dcache_tag_to_idx(dtag);
+    unsigned long           itag = icache_addr_to_tag(addr);
+    int                     iidx = icache_tag_to_idx(itag);
  
     int                     i;
     for (i = 0; i < instance->NOCPUs; i++)
