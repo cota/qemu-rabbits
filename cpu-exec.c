@@ -1728,10 +1728,10 @@ data_cache_access ()
     tag = dcache_addr_to_tag(addr);
     idx = dcache_tag_to_idx(tag);
 
-    if (tag != crt_qemu_instance->cpu_dcache[cpu][idx])
+    if (tag != qi_dcache(crt_qemu_instance)[cpu][idx])
     {
         g_no_dcache_miss++;
-        crt_qemu_instance->cpu_dcache[cpu][idx] = tag;
+        qi_dcache(crt_qemu_instance)[cpu][idx] = tag;
 
         #ifdef LOG_INFO_FOR_DEBUG
         log_data_cache (addr);
@@ -1753,7 +1753,7 @@ data_cache_access ()
         addr_in_mem_dev = _save_crt_qemu_instance->systemc.systemc_qemu_read_memory (
             _save_cpu_single_env->qemu.sc_obj, addr & ~DCACHE_LINE_MASK,
             1 << DCACHE_LINE_BITS, 0);
-        memcpy (_save_crt_qemu_instance->cpu_dcache_data[cpu][idx],
+        memcpy (qi_dcache_data(_save_crt_qemu_instance)[cpu][idx],
             (void *) addr_in_mem_dev, DCACHE_LINE_BYTES);
 
         RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
@@ -1780,7 +1780,7 @@ data_cache_access ()
     #endif
 
     #ifdef IMPLEMENT_FULL_CACHES
-        return &crt_qemu_instance->cpu_dcache_data[cpu][idx][dcache_addr_to_ofs(addr)];
+        return &qi_dcache_data(crt_qemu_instance)[cpu][idx][dcache_addr_to_ofs(addr)];
     #else
         #ifdef ONE_MEM_MODULE
             return (void *) (addr + cpu_single_env->sc_mem_host_addr);
@@ -1915,20 +1915,20 @@ write_access (unsigned long addr, int nb, unsigned long val)
     #endif
 
     #ifdef IMPLEMENT_FULL_CACHES
-    if (tag == _save_crt_qemu_instance->cpu_dcache[cpu][idx]) // addr in cache -> update
+    if (tag == qi_dcache(_save_crt_qemu_instance)[cpu][idx]) // addr in cache -> update
     {
         switch (nb)
         {
         case 1:
-            *((unsigned char *)  &_save_crt_qemu_instance->cpu_dcache_data[cpu][idx][ofs]) = 
+            *((unsigned char *)  &qi_dcache_data(_save_crt_qemu_instance)[cpu][idx][ofs]) =
                 (unsigned char) (val & 0x000000FF);
         break;
         case 2:
-            *((unsigned short *) &_save_crt_qemu_instance->cpu_dcache_data[cpu][idx][ofs]) = 
+            *((unsigned short *) &qi_dcache_data(_save_crt_qemu_instance)[cpu][idx][ofs]) =
                 (unsigned short) (val & 0x0000FFFF);
         break;
         case 4:
-            *((unsigned long *)  &_save_crt_qemu_instance->cpu_dcache_data[cpu][idx][ofs]) = 
+            *((unsigned long *)  &qi_dcache_data(_save_crt_qemu_instance)[cpu][idx][ofs]) =
                 (unsigned long) (val & 0xFFFFFFFF);
         break;
         default:
@@ -1959,10 +1959,10 @@ instruction_cache_access (unsigned long addr)
     unsigned long tag = icache_addr_to_tag(addr);
     int idx = icache_tag_to_idx(tag);
 
-    if (tag != crt_qemu_instance->cpu_icache[cpu][idx])
+    if (tag != qi_icache(crt_qemu_instance)[cpu][idx])
     {
         g_no_icache_miss++;
-        crt_qemu_instance->cpu_icache[cpu][idx] = tag;
+        qi_icache(crt_qemu_instance)[cpu][idx] = tag;
 
         #ifdef IMPLEMENT_FULL_CACHES
         int ninstr = s_crt_nr_cycles_instr;
@@ -2006,11 +2006,11 @@ qemu_invalidate_address (qemu_instance *instance, unsigned long addr, int src_id
     int                     i;
     for (i = 0; i < instance->NOCPUs; i++)
     {
-        if (i != src_idx && instance->cpu_dcache[i][didx] == dtag)
-            instance->cpu_dcache[i][didx] = (unsigned long) -1;
+        if (i != src_idx && qi_dcache(instance)[i][didx] == dtag)
+            qi_dcache(instance)[i][didx] = (unsigned long) -1;
 
-        if (instance->cpu_icache[i][iidx] == itag)
-            instance->cpu_icache[i][iidx] = (unsigned long) -1;
+        if (qi_icache(instance)[i][iidx] == itag)
+            qi_icache(instance)[i][iidx] = (unsigned long) -1;
     }
 }
 

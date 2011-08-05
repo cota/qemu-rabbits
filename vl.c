@@ -341,33 +341,33 @@ qemu_init_caches (void)
 {
     int line, cpu;
 
-    crt_qemu_instance->cpu_dcache = malloc (crt_qemu_instance->NOCPUs *
+    qi_dcache(crt_qemu_instance) = malloc (crt_qemu_instance->NOCPUs *
         DCACHE_LINES * sizeof (unsigned long));
     for (cpu = 0; cpu < crt_qemu_instance->NOCPUs; cpu++)
         for (line = 0; line < DCACHE_LINES; line++)
-            crt_qemu_instance->cpu_dcache[cpu][line] = (unsigned long) -1;
+            qi_dcache(crt_qemu_instance)[cpu][line] = (unsigned long) -1;
 
-    crt_qemu_instance->cpu_icache = malloc (crt_qemu_instance->NOCPUs *
+    qi_icache(crt_qemu_instance) = malloc (crt_qemu_instance->NOCPUs *
         ICACHE_LINES * sizeof (unsigned long));
     for (cpu = 0; cpu < crt_qemu_instance->NOCPUs; cpu++)
         for (line = 0; line < ICACHE_LINES; line++)
-            crt_qemu_instance->cpu_icache[cpu][line] = (unsigned long) -1;
+            qi_icache(crt_qemu_instance)[cpu][line] = (unsigned long) -1;
 
     int         w;
-    crt_qemu_instance->cpu_dcache_data = malloc (crt_qemu_instance->NOCPUs *
+    qi_dcache_data(crt_qemu_instance) = malloc (crt_qemu_instance->NOCPUs *
         DCACHE_LINES * DCACHE_LINE_BYTES * sizeof (unsigned char));
     for (cpu = 0; cpu < crt_qemu_instance->NOCPUs; cpu++)
         for (line = 0; line < DCACHE_LINES; line++)
             for (w = 0; w < DCACHE_LINE_WORDS; w++)
-                ((unsigned long *) crt_qemu_instance->cpu_dcache_data[cpu][line])[w] =
+                ((unsigned long *) qi_dcache_data(crt_qemu_instance)[cpu][line])[w] =
                     (unsigned long) 0xDEADBEAF;
 
-    crt_qemu_instance->cpu_icache_data = malloc (crt_qemu_instance->NOCPUs *
+    qi_icache_data(crt_qemu_instance) = malloc (crt_qemu_instance->NOCPUs *
         ICACHE_LINES * ICACHE_LINE_BYTES * sizeof (unsigned char));
     for (cpu = 0; cpu < crt_qemu_instance->NOCPUs; cpu++)
         for (line = 0; line < ICACHE_LINES; line++)
             for (w = 0; w < ICACHE_LINE_WORDS; w++)
-                ((unsigned long *) crt_qemu_instance->cpu_icache_data[cpu][line])[w] =
+                ((unsigned long *) qi_icache_data(crt_qemu_instance)[cpu][line])[w] =
                     (unsigned long) 0xDEADBEAF;
 }
 

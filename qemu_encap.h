@@ -6,6 +6,10 @@
 
 struct GDBState;
 
+/*
+ * Do not access cpu_{d,i}{cache,cache_data} directly; use the qi_* accessors
+ * defined below.
+ */
 typedef struct 
 {
     int                     id;
@@ -48,6 +52,11 @@ typedef struct
     unsigned long           log_cnt_instr;
     unsigned long           log_cnt_data;
 } qemu_instance;
+
+#define qi_dcache(qi)	((qi)->cpu_dcache)
+#define qi_dcache_data(qi)	((qi)->cpu_dcache_data)
+#define qi_icache(qi)	((qi)->cpu_icache)
+#define qi_icache_data(qi)	((qi)->cpu_icache_data)
 
 extern qemu_instance        *crt_qemu_instance;
 
