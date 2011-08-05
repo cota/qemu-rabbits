@@ -347,12 +347,6 @@ qemu_init_caches (void)
         for (line = 0; line < DCACHE_LINES; line++)
             qi_dcache(crt_qemu_instance)[cpu][line] = (unsigned long) -1;
 
-    qi_icache(crt_qemu_instance) = malloc (crt_qemu_instance->NOCPUs *
-        ICACHE_LINES * sizeof (unsigned long));
-    for (cpu = 0; cpu < crt_qemu_instance->NOCPUs; cpu++)
-        for (line = 0; line < ICACHE_LINES; line++)
-            qi_icache(crt_qemu_instance)[cpu][line] = (unsigned long) -1;
-
     int         w;
     qi_dcache_data(crt_qemu_instance) = malloc (crt_qemu_instance->NOCPUs *
         DCACHE_LINES * DCACHE_LINE_BYTES * sizeof (unsigned char));
@@ -361,6 +355,12 @@ qemu_init_caches (void)
             for (w = 0; w < DCACHE_LINE_WORDS; w++)
                 ((unsigned long *) qi_dcache_data(crt_qemu_instance)[cpu][line])[w] =
                     (unsigned long) 0xDEADBEAF;
+#ifndef IMPLEMENT_COMBINED_CACHE
+    qi_icache(crt_qemu_instance) = malloc (crt_qemu_instance->NOCPUs *
+        ICACHE_LINES * sizeof (unsigned long));
+    for (cpu = 0; cpu < crt_qemu_instance->NOCPUs; cpu++)
+        for (line = 0; line < ICACHE_LINES; line++)
+            qi_icache(crt_qemu_instance)[cpu][line] = (unsigned long) -1;
 
     qi_icache_data(crt_qemu_instance) = malloc (crt_qemu_instance->NOCPUs *
         ICACHE_LINES * ICACHE_LINE_BYTES * sizeof (unsigned char));
@@ -369,6 +369,7 @@ qemu_init_caches (void)
             for (w = 0; w < ICACHE_LINE_WORDS; w++)
                 ((unsigned long *) qi_icache_data(crt_qemu_instance)[cpu][line])[w] =
                     (unsigned long) 0xDEADBEAF;
+#endif /* IMPLEMENT_COMBINED_CACHE */
 }
 
 void

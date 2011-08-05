@@ -5,6 +5,8 @@
 #define IMPLEMENT_LATE_CACHES
 #define ONE_MEM_MODULE
 #define GDB_ENABLED
+/* define IMPLEMENT_COMBINED_CACHE to have a single Instruction/Data Cache */
+//#define IMPLEMENT_COMBINED_CACHE
 
 //assure a consistent configuration
 #if defined(IMPLEMENT_FULL_CACHES) && defined(ONE_MEM_MODULE)

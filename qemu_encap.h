@@ -14,10 +14,15 @@ typedef struct
 {
     int                     id;
     int                     NOCPUs;
+#ifdef IMPLEMENT_COMBINED_CACHE
+    unsigned long           (*cpu_cache)[DCACHE_LINES];
+    unsigned char           (*cpu_cache_data)[DCACHE_LINES][DCACHE_LINE_BYTES];
+#else
     unsigned long           (*cpu_dcache)[DCACHE_LINES];
     unsigned long           (*cpu_icache)[ICACHE_LINES];
     unsigned char           (*cpu_dcache_data)[DCACHE_LINES][DCACHE_LINE_BYTES];
     unsigned char           (*cpu_icache_data)[ICACHE_LINES][ICACHE_LINE_BYTES];
+#endif /* IMPLEMENT_COMBINED_CACHE */
     void                    **irqs_systemc;
 
     void                    *first_cpu;
@@ -53,10 +58,18 @@ typedef struct
     unsigned long           log_cnt_data;
 } qemu_instance;
 
+#ifdef IMPLEMENT_COMBINED_CACHE
+#define qi_dcache(qi)	((qi)->cpu_cache)
+#define qi_dcache_data(qi)	((qi)->cpu_cache_data)
+#define qi_icache(qi)	((qi)->cpu_cache)
+#define qi_icache_data(qi)	((qi)->cpu_cache_data)
+#else
 #define qi_dcache(qi)	((qi)->cpu_dcache)
 #define qi_dcache_data(qi)	((qi)->cpu_dcache_data)
 #define qi_icache(qi)	((qi)->cpu_icache)
 #define qi_icache_data(qi)	((qi)->cpu_icache_data)
+#endif /* IMPLEMENT_COMBINED_CACHE */
+
 
 extern qemu_instance        *crt_qemu_instance;
 
