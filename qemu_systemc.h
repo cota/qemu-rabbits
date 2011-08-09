@@ -20,9 +20,6 @@
 
 #define MEM_LIMIT           0x8000000
 
-#define CACHE_BITS_TO_BYTES(bits)	(1 <<  (bits))
-#define CACHE_BITS_TO_MASK(bits)	(CACHE_BITS_TO_BYTES(bits) - 1)
-
 #ifdef IMPLEMENT_COMBINED_CACHE
 #define DCACHE_LINES		512
 #define ICACHE_LINES		DCACHE_LINES
@@ -34,6 +31,9 @@
 #define __cache_tag_to_idx(tag, lines)	((tag) & ((lines) - 1))
 #define dcache_tag_to_idx(tag)		__cache_tag_to_idx (tag,  DCACHE_LINES)
 #define icache_tag_to_idx(tag)		__cache_tag_to_idx (tag,  ICACHE_LINES)
+
+#define CACHE_BITS_TO_BYTES(bits)	(1 <<  (bits))
+#define CACHE_BITS_TO_MASK(bits)	(CACHE_BITS_TO_BYTES(bits) - 1)
 
 /*
  * The size of each cacheline is the same for Instruction and Data caches.
