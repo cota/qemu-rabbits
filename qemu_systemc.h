@@ -45,12 +45,7 @@
 #define CACHE_LINE_BYTES	CACHE_BITS_TO_BYTES(CACHE_LINE_BITS)
 #define CACHE_LINE_MASK		CACHE_BITS_TO_MASK (CACHE_LINE_BITS)
 
-#define cache_addr_to_tag(addr)	((addr) >> CACHE_LINE_BITS)
-#define cache_addr_to_ofs(addr)	((addr) & CACHE_LINE_MASK)
-
-#define dcache_addr_to_tag(addr)	cache_addr_to_tag(addr)
-#define dcache_addr_to_ofs(addr)	cache_addr_to_ofs(addr)
-#define icache_addr_to_tag(addr)	cache_addr_to_tag(addr)
-#define icache_addr_to_ofs(addr)	cache_addr_to_ofs(addr)
+#define __addr_to_tag(addr)	((addr) >> CACHE_LINE_BITS)
+#define __addr_to_ofs(addr)	((addr) & CACHE_LINE_MASK)
 
 #endif
