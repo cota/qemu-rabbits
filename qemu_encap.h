@@ -16,12 +16,12 @@ typedef struct
     int                     NOCPUs;
 #ifdef IMPLEMENT_COMBINED_CACHE
     unsigned long           (*cpu_cache)[DCACHE_LINES];
-    unsigned char           (*cpu_cache_data)[DCACHE_LINES][DCACHE_LINE_BYTES];
+    unsigned char           (*cpu_cache_data)[DCACHE_LINES][CACHE_LINE_BYTES];
 #else
     unsigned long           (*cpu_dcache)[DCACHE_LINES];
     unsigned long           (*cpu_icache)[ICACHE_LINES];
-    unsigned char           (*cpu_dcache_data)[DCACHE_LINES][DCACHE_LINE_BYTES];
-    unsigned char           (*cpu_icache_data)[ICACHE_LINES][ICACHE_LINE_BYTES];
+    unsigned char           (*cpu_dcache_data)[DCACHE_LINES][CACHE_LINE_BYTES];
+    unsigned char           (*cpu_icache_data)[ICACHE_LINES][CACHE_LINE_BYTES];
 #endif /* IMPLEMENT_COMBINED_CACHE */
     void                    **irqs_systemc;
 

@@ -4684,7 +4684,7 @@ static void disas_arm_insn (CPUState * env, DisasContext *s)
     #ifdef GDB_ENABLED
     gen_op_gdb_verify (s->pc);
     #endif
-    if (((tmp_physaddr & ((1 << ICACHE_LINE_BITS) - 1)) == 0) || b_first_instruction_in_tb)
+    if (((tmp_physaddr & ((1 << CACHE_LINE_BITS) - 1)) == 0) || b_first_instruction_in_tb)
     {
         b_first_instruction_in_tb = 0;
 

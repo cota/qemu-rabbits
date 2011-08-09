@@ -25,45 +25,32 @@
 #define CACHE_BITS_TO_MASK(bits)	(CACHE_BITS_TO_BYTES(bits) - 1)
 
 #ifdef IMPLEMENT_COMBINED_CACHE
-
 #define DCACHE_LINES		512
-#define DCACHE_LINE_BITS	5
-#define DCACHE_LINE_WORDS	CACHE_BITS_TO_WORDS(DCACHE_LINE_BITS)
-#define DCACHE_LINE_BYTES	CACHE_BITS_TO_BYTES(DCACHE_LINE_BITS)
-#define DCACHE_LINE_MASK	CACHE_BITS_TO_MASK (DCACHE_LINE_BITS)
-
 #define ICACHE_LINES		DCACHE_LINES
-#define ICACHE_LINE_BITS	DCACHE_LINE_BITS
-#define ICACHE_LINE_WORDS	DCACHE_LINE_WORDS
-#define ICACHE_LINE_BYTES	DCACHE_LINE_BYTES
-#define ICACHE_LINE_MASK	DCACHE_LINE_MASK
-
 #else
-
 #define DCACHE_LINES        256
-#define DCACHE_LINE_BITS	5
-#define DCACHE_LINE_WORDS	CACHE_BITS_TO_WORDS(DCACHE_LINE_BITS)
-#define DCACHE_LINE_BYTES	CACHE_BITS_TO_BYTES(DCACHE_LINE_BITS)
-#define DCACHE_LINE_MASK	CACHE_BITS_TO_MASK (DCACHE_LINE_BITS)
-
 #define ICACHE_LINES        256
-#define ICACHE_LINE_BITS	5
-#define ICACHE_LINE_WORDS	CACHE_BITS_TO_WORDS(ICACHE_LINE_BITS)
-#define ICACHE_LINE_BYTES	CACHE_BITS_TO_BYTES(ICACHE_LINE_BITS)
-#define ICACHE_LINE_MASK	CACHE_BITS_TO_MASK (ICACHE_LINE_BITS)
-
 #endif /* IMPLEMENT_COMBINED_CACHE */
 
-#define __cache_addr_to_tag(addr, bits)	((addr) >> (bits))
 #define __cache_tag_to_idx(tag, lines)	((tag) & ((lines) - 1))
-#define __cache_addr_to_ofs(addr, mask)	((addr) & (mask))
-
-#define dcache_addr_to_tag(addr)	__cache_addr_to_tag(addr, DCACHE_LINE_BITS)
 #define dcache_tag_to_idx(tag)		__cache_tag_to_idx (tag,  DCACHE_LINES)
-#define dcache_addr_to_ofs(addr)	__cache_addr_to_ofs(addr, DCACHE_LINE_MASK)
-
-#define icache_addr_to_tag(addr)	__cache_addr_to_tag(addr, ICACHE_LINE_BITS)
 #define icache_tag_to_idx(tag)		__cache_tag_to_idx (tag,  ICACHE_LINES)
-#define icache_addr_to_ofs(addr)	__cache_addr_to_ofs(addr, ICACHE_LINE_MASK)
+
+/*
+ * The size of each cacheline is the same for Instruction and Data caches.
+ * The number of lines on each of them may vary though.
+ */
+#define CACHE_LINE_BITS		5
+#define CACHE_LINE_WORDS	CACHE_BITS_TO_WORDS(CACHE_LINE_BITS)
+#define CACHE_LINE_BYTES	CACHE_BITS_TO_BYTES(CACHE_LINE_BITS)
+#define CACHE_LINE_MASK		CACHE_BITS_TO_MASK (CACHE_LINE_BITS)
+
+#define cache_addr_to_tag(addr)	((addr) >> CACHE_LINE_BITS)
+#define cache_addr_to_ofs(addr)	((addr) & CACHE_LINE_MASK)
+
+#define dcache_addr_to_tag(addr)	cache_addr_to_tag(addr)
+#define dcache_addr_to_ofs(addr)	cache_addr_to_ofs(addr)
+#define icache_addr_to_tag(addr)	cache_addr_to_tag(addr)
+#define icache_addr_to_ofs(addr)	cache_addr_to_ofs(addr)
 
 #endif

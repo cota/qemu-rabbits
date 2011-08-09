@@ -1751,10 +1751,10 @@ data_cache_access ()
 
         unsigned long addr_in_mem_dev;
         addr_in_mem_dev = _save_crt_qemu_instance->systemc.systemc_qemu_read_memory (
-            _save_cpu_single_env->qemu.sc_obj, addr & ~DCACHE_LINE_MASK,
-            1 << DCACHE_LINE_BITS, 0);
+            _save_cpu_single_env->qemu.sc_obj, addr & ~CACHE_LINE_MASK,
+            1 << CACHE_LINE_BITS, 0);
         memcpy (qi_dcache_data(_save_crt_qemu_instance)[cpu][idx],
-            (void *) addr_in_mem_dev, DCACHE_LINE_BYTES);
+            (void *) addr_in_mem_dev, CACHE_LINE_BYTES);
 
         RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
         #else //IMPLEMENT_LATE_CACHES
@@ -1978,7 +1978,7 @@ instruction_cache_access (unsigned long addr)
         unsigned long junk;
         junk = _save_crt_qemu_instance->systemc.systemc_qemu_read_memory (
             _save_cpu_single_env->qemu.sc_obj,
-            addr & ~ICACHE_LINE_MASK, 1 << ICACHE_LINE_BITS, 0);
+            addr & ~CACHE_LINE_MASK, 1 << CACHE_LINE_BITS, 0);
 
         RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
         #else //cache late configuration
