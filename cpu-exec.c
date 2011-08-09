@@ -1753,7 +1753,7 @@ data_cache_access ()
         addr_in_mem_dev = _save_crt_qemu_instance->systemc.systemc_qemu_read_memory (
             _save_cpu_single_env->qemu.sc_obj, addr & ~CACHE_LINE_MASK,
             1 << CACHE_LINE_BITS, 0);
-        memcpy (qi_dcache_data(_save_crt_qemu_instance)[cpu][idx],
+        memcpy (&qi_dcache_data(_save_crt_qemu_instance)[cpu][idx],
             (void *) addr_in_mem_dev, CACHE_LINE_BYTES);
 
         RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
@@ -1780,7 +1780,7 @@ data_cache_access ()
     #endif
 
     #ifdef IMPLEMENT_FULL_CACHES
-        return &qi_dcache_data(crt_qemu_instance)[cpu][idx][__addr_to_ofs(addr)];
+        return &qi_dcache_data(crt_qemu_instance)[cpu][idx].data[__addr_to_ofs(addr)];
     #else
         #ifdef ONE_MEM_MODULE
             return (void *) (addr + cpu_single_env->sc_mem_host_addr);
@@ -1920,15 +1920,15 @@ write_access (unsigned long addr, int nb, unsigned long val)
         switch (nb)
         {
         case 1:
-            *((unsigned char *)  &qi_dcache_data(_save_crt_qemu_instance)[cpu][idx][ofs]) =
+            *((unsigned char *)  &qi_dcache_data(_save_crt_qemu_instance)[cpu][idx].data[ofs]) =
                 (unsigned char) (val & 0x000000FF);
         break;
         case 2:
-            *((unsigned short *) &qi_dcache_data(_save_crt_qemu_instance)[cpu][idx][ofs]) =
+            *((unsigned short *) &qi_dcache_data(_save_crt_qemu_instance)[cpu][idx].data[ofs]) =
                 (unsigned short) (val & 0x0000FFFF);
         break;
         case 4:
-            *((unsigned long *)  &qi_dcache_data(_save_crt_qemu_instance)[cpu][idx][ofs]) =
+            *((unsigned long *)  &qi_dcache_data(_save_crt_qemu_instance)[cpu][idx].data[ofs]) =
                 (unsigned long) (val & 0xFFFFFFFF);
         break;
         default:

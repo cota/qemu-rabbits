@@ -20,7 +20,6 @@
 
 #define MEM_LIMIT           0x8000000
 
-#define CACHE_BITS_TO_WORDS(bits)	(1 << ((bits) - 2))
 #define CACHE_BITS_TO_BYTES(bits)	(1 <<  (bits))
 #define CACHE_BITS_TO_MASK(bits)	(CACHE_BITS_TO_BYTES(bits) - 1)
 
@@ -41,7 +40,6 @@
  * The number of lines on each of them may vary though.
  */
 #define CACHE_LINE_BITS		5
-#define CACHE_LINE_WORDS	CACHE_BITS_TO_WORDS(CACHE_LINE_BITS)
 #define CACHE_LINE_BYTES	CACHE_BITS_TO_BYTES(CACHE_LINE_BITS)
 #define CACHE_LINE_MASK		CACHE_BITS_TO_MASK (CACHE_LINE_BITS)
 

@@ -6,6 +6,10 @@
 
 struct GDBState;
 
+struct cacheline {
+    uint8_t	data[CACHE_LINE_BYTES];
+};
+
 /*
  * Do not access cpu_{d,i}{cache,cache_data} directly; use the qi_* accessors
  * defined below.
@@ -16,12 +20,12 @@ typedef struct
     int                     NOCPUs;
 #ifdef IMPLEMENT_COMBINED_CACHE
     unsigned long           (*cpu_cache)[DCACHE_LINES];
-    unsigned char           (*cpu_cache_data)[DCACHE_LINES][CACHE_LINE_BYTES];
+    struct cacheline        (*cpu_cache_data)[DCACHE_LINES];
 #else
     unsigned long           (*cpu_dcache)[DCACHE_LINES];
     unsigned long           (*cpu_icache)[ICACHE_LINES];
-    unsigned char           (*cpu_dcache_data)[DCACHE_LINES][CACHE_LINE_BYTES];
-    unsigned char           (*cpu_icache_data)[ICACHE_LINES][CACHE_LINE_BYTES];
+    struct cacheline        (*cpu_dcache_data)[DCACHE_LINES];
+    struct cacheline        (*cpu_icache_data)[ICACHE_LINES];
 #endif /* IMPLEMENT_COMBINED_CACHE */
     void                    **irqs_systemc;
 
