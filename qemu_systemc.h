@@ -3,6 +3,10 @@
 
 #include <cfg.h>
 
+#ifndef BIT
+#define BIT(nr)	(1UL << (nr))
+#endif
+
 #define CODE_GEN_BUFFER_SIZE     (8 * 1024 * 1024)
 
 //#define COUNT_INSTR_FOR_STATISTICS
@@ -32,15 +36,14 @@
 #define dcache_tag_to_idx(tag)		__cache_tag_to_idx (tag,  DCACHE_LINES)
 #define icache_tag_to_idx(tag)		__cache_tag_to_idx (tag,  ICACHE_LINES)
 
-#define CACHE_BITS_TO_BYTES(bits)	(1 <<  (bits))
-#define CACHE_BITS_TO_MASK(bits)	(CACHE_BITS_TO_BYTES(bits) - 1)
+#define CACHE_BITS_TO_MASK(bits)	(BIT(bits) - 1)
 
 /*
  * The size of each cacheline is the same for Instruction and Data caches.
  * The number of lines on each of them may vary though.
  */
 #define CACHE_LINE_BITS		5
-#define CACHE_LINE_BYTES	CACHE_BITS_TO_BYTES(CACHE_LINE_BITS)
+#define CACHE_LINE_BYTES	BIT(CACHE_LINE_BITS)
 #define CACHE_LINE_MASK		CACHE_BITS_TO_MASK (CACHE_LINE_BITS)
 
 #define __addr_to_tag(addr)	((addr) >> CACHE_LINE_BITS)
