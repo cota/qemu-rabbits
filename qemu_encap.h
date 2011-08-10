@@ -10,6 +10,49 @@ struct cacheline {
     uint8_t	data[CACHE_LINE_BYTES];
 };
 
+struct cacheline_desc {
+    int			cpu;
+    unsigned long	tag;
+    int			idx;
+};
+
+static inline int
+__cache_hit(int n, unsigned long (*cache)[n], struct cacheline_desc *line)
+{
+    return cache[line->cpu][line->idx] == line->tag;
+}
+
+static inline int
+dcache_hit(unsigned long (*cache)[DCACHE_LINES], struct cacheline_desc *line)
+{
+    return __cache_hit(DCACHE_LINES, cache, line);
+}
+
+static inline int
+icache_hit(unsigned long (*cache)[ICACHE_LINES], struct cacheline_desc *line)
+{
+    return __cache_hit(ICACHE_LINES, cache, line);
+}
+
+static inline void
+__cache_refresh(int n, unsigned long (*cache)[n], struct cacheline_desc *line)
+{
+    cache[line->cpu][line->idx] = line->tag;
+}
+
+static inline void
+dcache_refresh(unsigned long (*cache)[DCACHE_LINES], struct cacheline_desc *line)
+{
+    __cache_refresh(DCACHE_LINES, cache, line);
+}
+
+static inline void
+icache_refresh(unsigned long (*cache)[ICACHE_LINES], struct cacheline_desc *line)
+{
+    __cache_refresh(ICACHE_LINES, cache, line);
+}
+
+
 /*
  * Do not access cpu_{d,i}{cache,cache_data} directly; use the qi_* accessors
  * defined below.
