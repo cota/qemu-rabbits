@@ -1916,6 +1916,13 @@ write_access (unsigned long addr, int nb, unsigned long val)
     #endif
 
     #ifdef IMPLEMENT_FULL_CACHES
+    /*
+     * Note: on a write miss we'd need to fetch the line from memory, update
+     * the few bytes coming from the write, and then commit it back to memory.
+     * This would gain us very little, since a subsequent read would fetch the
+     * line from memory anyway.
+     * Therefore we only update cache lines when there's a hit.
+     */
     if (dcache_hit(qi_dcache(_save_crt_qemu_instance), line))
     {
         switch (nb)
