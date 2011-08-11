@@ -10,6 +10,10 @@ struct cacheline {
     uint8_t	data[CACHE_LINE_BYTES];
 };
 
+struct cacheline_entry {
+    unsigned long	tag;
+};
+
 struct cacheline_desc {
     int			cpu;
     unsigned long	tag;
@@ -17,37 +21,37 @@ struct cacheline_desc {
 };
 
 static inline int
-__cache_hit(int n, unsigned long (*cache)[n], struct cacheline_desc *line)
+__cache_hit(int n, struct cacheline_entry (*cache)[n], struct cacheline_desc *line)
 {
-    return cache[line->cpu][line->idx] == line->tag;
+    return cache[line->cpu][line->idx].tag == line->tag;
 }
 
 static inline int
-dcache_hit(unsigned long (*cache)[DCACHE_LINES], struct cacheline_desc *line)
+dcache_hit(struct cacheline_entry (*cache)[DCACHE_LINES], struct cacheline_desc *line)
 {
     return __cache_hit(DCACHE_LINES, cache, line);
 }
 
 static inline int
-icache_hit(unsigned long (*cache)[ICACHE_LINES], struct cacheline_desc *line)
+icache_hit(struct cacheline_entry (*cache)[ICACHE_LINES], struct cacheline_desc *line)
 {
     return __cache_hit(ICACHE_LINES, cache, line);
 }
 
 static inline void
-__cache_refresh(int n, unsigned long (*cache)[n], struct cacheline_desc *line)
+__cache_refresh(int n, struct cacheline_entry (*cache)[n], struct cacheline_desc *line)
 {
-    cache[line->cpu][line->idx] = line->tag;
+    cache[line->cpu][line->idx].tag = line->tag;
 }
 
 static inline void
-dcache_refresh(unsigned long (*cache)[DCACHE_LINES], struct cacheline_desc *line)
+dcache_refresh(struct cacheline_entry (*cache)[DCACHE_LINES], struct cacheline_desc *line)
 {
     __cache_refresh(DCACHE_LINES, cache, line);
 }
 
 static inline void
-icache_refresh(unsigned long (*cache)[ICACHE_LINES], struct cacheline_desc *line)
+icache_refresh(struct cacheline_entry (*cache)[ICACHE_LINES], struct cacheline_desc *line)
 {
     __cache_refresh(ICACHE_LINES, cache, line);
 }
@@ -62,11 +66,11 @@ typedef struct
     int                     id;
     int                     NOCPUs;
 #ifdef IMPLEMENT_COMBINED_CACHE
-    unsigned long           (*cpu_cache)[DCACHE_LINES];
+    struct cacheline_entry  (*cpu_cache)[DCACHE_LINES];
     struct cacheline        (*cpu_cache_data)[DCACHE_LINES];
 #else
-    unsigned long           (*cpu_dcache)[DCACHE_LINES];
-    unsigned long           (*cpu_icache)[ICACHE_LINES];
+    struct cacheline_entry  (*cpu_dcache)[DCACHE_LINES];
+    struct cacheline_entry  (*cpu_icache)[ICACHE_LINES];
     struct cacheline        (*cpu_dcache_data)[DCACHE_LINES];
     struct cacheline        (*cpu_icache_data)[ICACHE_LINES];
 #endif /* IMPLEMENT_COMBINED_CACHE */

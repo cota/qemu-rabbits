@@ -2012,10 +2012,10 @@ qemu_invalidate_address (qemu_instance *instance, unsigned long addr, int src_id
 	dline->cpu = i;
 	iline->cpu = i;
         if (i != src_idx && dcache_hit(qi_dcache(instance), dline))
-            qi_dcache(instance)[dline->cpu][dline->idx] = (unsigned long) -1;
+            qi_dcache(instance)[dline->cpu][dline->idx].tag = ~0;
 
         if (icache_hit(qi_icache(instance), iline))
-            qi_icache(instance)[iline->cpu][iline->idx] = (unsigned long) -1;
+            qi_icache(instance)[iline->cpu][iline->idx].tag = ~0;
     }
 }
 
