@@ -102,6 +102,9 @@ static void sparc_longjmp(jmp_buf buf, int val)
     #define DTBALLOCPRINTF if (0) printf
 #endif
 
+void
+qemu_invalidate_address (qemu_instance *instance, unsigned long addr, int src_idx);
+
 void cpu_loop_exit(void)
 {
     /* NOTE: the register at this point must be saved by hand because
@@ -1954,6 +1957,7 @@ write_access (unsigned long addr, int nb, unsigned long val)
             exit (1);
         }
     }
+    qemu_invalidate_address (_save_crt_qemu_instance, addr, line->cpu);
 
     _save_crt_qemu_instance->systemc.systemc_qemu_write_memory (
         _save_cpu_single_env->qemu.sc_obj, addr, val, nb, 0);
