@@ -23,6 +23,12 @@ struct cacheline_desc {
     int			way;
 };
 
+static inline void print_cacheline_desc(const struct cacheline_desc *desc)
+{
+    printf("cl %p: cpu %d way %2d tag 0x%08lx idx 0x%x\n",
+	   desc, desc->cpu, desc->way, desc->tag, desc->idx);
+}
+
 /*
  * Cache Read/Write rationale
  * ~~~~~~~~~~~~~~~~~~~~~~~~~~
