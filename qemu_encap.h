@@ -114,7 +114,7 @@ __lru_turn_in(int n, struct cacheline_entry (*cache)[n][CACHE_WAYS], struct cach
     }
 
     if (age == -1)
-	printf("%s: could not find valid cacheline", __func__);
+	printf("%s: could not find valid cacheline\n", __func__);
 
     for (way = 0; way < CACHE_WAYS; way++) {
 	struct cacheline_entry *entry = &cache[desc->cpu][desc->idx][way];
@@ -131,6 +131,10 @@ __lru_turn_in(int n, struct cacheline_entry (*cache)[n][CACHE_WAYS], struct cach
 static inline void
 dcache_invalidate(struct cacheline_entry (*cache)[DCACHE_LPS][CACHE_WAYS], struct cacheline_desc *desc)
 {
+#ifdef DEBUG
+    printf("inv : ");
+    print_cacheline_desc(desc);
+#endif
     __lru_turn_in(DCACHE_LPS, cache, desc);
     cache[desc->cpu][desc->idx][desc->way].tag = ~0;
 }
@@ -159,9 +163,17 @@ __cache_hit(int n, struct cacheline_entry (*cache)[n][CACHE_WAYS], struct cachel
 	    desc->way = way;
 	    if (update)
 		__lru_update(n, cache, desc);
+#ifdef DEBUG
+	    printf("hit : ");
+	    print_cacheline_desc(desc);
+#endif
 	    return 1;
 	}
     }
+#ifdef DEBUG
+    printf("miss: ");
+    print_cacheline_desc(desc);
+#endif
     return 0;
 }
 

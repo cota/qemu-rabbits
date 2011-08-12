@@ -1728,6 +1728,10 @@ data_cache_access ()
     line->idx = dcache_tag_to_idx(line->tag);
     line->way = -1;
 
+#ifdef DEBUG
+    printf("drea: ");
+    print_cacheline_desc(line);
+#endif
     if (!dcache_hit(qi_dcache(crt_qemu_instance), line))
     {
         g_no_dcache_miss++;
@@ -1925,6 +1929,10 @@ write_access (unsigned long addr, int nb, unsigned long val)
      * line from memory anyway.
      * Therefore we only update cache lines when there's a hit.
      */
+#ifdef DEBUG
+    printf("dwri: ");
+    print_cacheline_desc(line);
+#endif
     if (dcache_hit(qi_dcache(_save_crt_qemu_instance), line))
     {
         switch (nb)
@@ -1971,6 +1979,10 @@ instruction_cache_access (unsigned long addr)
     line->idx = icache_tag_to_idx(line->tag);
     line->way = -1;
 
+#ifdef DEBUG
+    printf("irea: ");
+    print_cacheline_desc(line);
+#endif
     if (!icache_hit(qi_icache(crt_qemu_instance), line))
     {
         g_no_icache_miss++;
@@ -2015,6 +2027,10 @@ qemu_invalidate_address (qemu_instance *instance, unsigned long addr, int src_id
     dline->idx = dcache_tag_to_idx(dline->tag);
     iline->tag = __addr_to_tag(addr);
     iline->idx = icache_tag_to_idx(iline->tag);
+
+#ifdef DEBUG
+    printf("inv addr %08lx src %d\n", addr, src_idx);
+#endif
 
     int                     i;
     for (i = 0; i < instance->NOCPUs; i++)
