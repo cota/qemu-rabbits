@@ -32,10 +32,6 @@
 #define ICACHE_LINES        256
 #endif /* IMPLEMENT_COMBINED_CACHE */
 
-#define __cache_tag_to_idx(tag, lines)	((tag) & ((lines) - 1))
-#define dcache_tag_to_idx(tag)		__cache_tag_to_idx (tag,  DCACHE_LINES)
-#define icache_tag_to_idx(tag)		__cache_tag_to_idx (tag,  ICACHE_LINES)
-
 #define CACHE_BITS_TO_MASK(bits)	(BIT(bits) - 1)
 
 /*
@@ -46,7 +42,19 @@
 #define CACHE_LINE_BYTES	BIT(CACHE_LINE_BITS)
 #define CACHE_LINE_MASK		CACHE_BITS_TO_MASK (CACHE_LINE_BITS)
 
+#define CACHE_WAYS	BIT(CACHE_ASSOC)
+#define CACHE_WAYS_MASK	(CACHE_WAYS - 1)
+
+/* Lines Per Set (LPS) */
+#define DCACHE_LPS	(DCACHE_LINES >> CACHE_ASSOC)
+#define ICACHE_LPS	(ICACHE_LINES >> CACHE_ASSOC)
+
+/* XXX remove idx bits from the tag */
 #define __addr_to_tag(addr)	((addr) >> CACHE_LINE_BITS)
 #define __addr_to_ofs(addr)	((addr) & CACHE_LINE_MASK)
+
+#define __cache_tag_to_idx(tag, lines)	((tag) & ((lines) - 1))
+#define dcache_tag_to_idx(tag)		__cache_tag_to_idx (tag,  DCACHE_LPS)
+#define icache_tag_to_idx(tag)		__cache_tag_to_idx (tag,  ICACHE_LPS)
 
 #endif

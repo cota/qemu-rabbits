@@ -345,39 +345,44 @@ static void init_cacheline(struct cacheline *line)
 	data[i] = 0xdeadbeef;
 }
 
-static void init_cacheline_entry(struct cacheline_entry *entry)
+static void init_cacheline_entry(struct cacheline_entry *entry, int age)
 {
     entry->tag = ~0;
+    entry->age = age;
 }
 
 void
 qemu_init_caches (void)
 {
-    int line, cpu;
+    int way, idx, cpu;
 
     qi_dcache(crt_qemu_instance) = malloc (crt_qemu_instance->NOCPUs *
-        DCACHE_LINES * sizeof (struct cacheline_entry));
+        DCACHE_LPS * CACHE_WAYS * sizeof (struct cacheline_entry));
     for (cpu = 0; cpu < crt_qemu_instance->NOCPUs; cpu++)
-        for (line = 0; line < DCACHE_LINES; line++)
-            init_cacheline_entry(&qi_dcache(crt_qemu_instance)[cpu][line]);
+	for (idx = 0; idx < DCACHE_LPS; idx++)
+	    for (way = 0; way < CACHE_WAYS; way++)
+		init_cacheline_entry(&qi_dcache(crt_qemu_instance)[cpu][idx][way], way);
 
     qi_dcache_data(crt_qemu_instance) = malloc (crt_qemu_instance->NOCPUs *
-        DCACHE_LINES * sizeof(struct cacheline));
+        DCACHE_LPS * CACHE_WAYS * sizeof(struct cacheline));
     for (cpu = 0; cpu < crt_qemu_instance->NOCPUs; cpu++)
-        for (line = 0; line < DCACHE_LINES; line++)
-	    init_cacheline(&qi_dcache_data(crt_qemu_instance)[cpu][line]);
+	for (idx = 0; idx < DCACHE_LPS; idx++)
+	    for (way = 0; way < CACHE_WAYS; way++)
+		init_cacheline(&qi_dcache_data(crt_qemu_instance)[cpu][idx][way]);
 #ifndef IMPLEMENT_COMBINED_CACHE
     qi_icache(crt_qemu_instance) = malloc (crt_qemu_instance->NOCPUs *
-        ICACHE_LINES * sizeof (struct cacheline_entry));
+        ICACHE_LPS * CACHE_WAYS * sizeof (struct cacheline_entry));
     for (cpu = 0; cpu < crt_qemu_instance->NOCPUs; cpu++)
-        for (line = 0; line < ICACHE_LINES; line++)
-            init_cacheline_entry(&qi_icache(crt_qemu_instance)[cpu][line]);
+	for (idx = 0; idx < ICACHE_LPS; idx++)
+	    for (way = 0; way < CACHE_WAYS; way++)
+		init_cacheline_entry(&qi_icache(crt_qemu_instance)[cpu][idx][way], way);
 
     qi_icache_data(crt_qemu_instance) = malloc (crt_qemu_instance->NOCPUs *
-        ICACHE_LINES * sizeof(struct cacheline));
+        ICACHE_LPS * CACHE_WAYS * sizeof(struct cacheline));
     for (cpu = 0; cpu < crt_qemu_instance->NOCPUs; cpu++)
-        for (line = 0; line < ICACHE_LINES; line++)
-	    init_cacheline(&qi_icache_data(crt_qemu_instance)[cpu][line]);
+	for (idx = 0; idx < ICACHE_LPS; idx++)
+	    for (way = 0; way < CACHE_WAYS; way++)
+		init_cacheline(&qi_icache_data(crt_qemu_instance)[cpu][idx][way]);
 #endif /* IMPLEMENT_COMBINED_CACHE */
 }
 

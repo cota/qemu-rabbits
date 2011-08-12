@@ -8,6 +8,9 @@
 /* define IMPLEMENT_COMBINED_CACHE to have a single Instruction/Data Cache */
 //#define IMPLEMENT_COMBINED_CACHE
 
+/* cache associativity: defined in log2 (i.e. 0 for no associativity) */
+#define CACHE_ASSOC	0
+
 //assure a consistent configuration
 #if defined(IMPLEMENT_FULL_CACHES) && defined(ONE_MEM_MODULE)
 #undef ONE_MEM_MODULE
