@@ -12,15 +12,15 @@ struct cacheline {
 
 struct cacheline_entry {
     unsigned long	tag;
-    int			age;
+    int8_t		age;
 };
 
 /* Use -1 for an unknown way, to be retrieved by the helpers below. */
 struct cacheline_desc {
-    int			cpu;
     unsigned long	tag;
     int			idx;
-    int			way;
+    int8_t		cpu;
+    int8_t		way;
 };
 
 static inline void print_cacheline_desc(const struct cacheline_desc *desc)
