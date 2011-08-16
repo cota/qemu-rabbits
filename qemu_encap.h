@@ -71,28 +71,21 @@ entry_match(const struct cacheline_entry *entry, unsigned long tag, int type)
 static inline void
 __lru_update(int n, struct cacheline_entry (*cache)[n][CACHE_WAYS], struct cacheline_desc *desc, int type)
 {
-    int age;
+    struct cacheline_entry *mru_entry;
     int way;
 
-    for (way = 0; way < CACHE_WAYS; way++) {
-	struct cacheline_entry *entry = &cache[desc->cpu][desc->idx][way];
+    if (desc->way == -1)
+	printf("warning: %s: desc->way == -1\n", __func__);
 
-	if (entry_match(entry, desc->tag, type)) {
-	    age = entry->age;
-	    break;
-	}
-    }
+    mru_entry = &cache[desc->cpu][desc->idx][desc->way];
 
     for (way = 0; way < CACHE_WAYS; way++) {
 	struct cacheline_entry *entry = &cache[desc->cpu][desc->idx][way];
 
-	if (entry_match(entry, desc->tag, type)) {
-	    entry->age = 0;
-	    continue;
-	}
-	if (entry->age < age)
+	if (entry->age < mru_entry->age)
 	    entry->age++;
     }
+    mru_entry->age = 0;
 }
 
 static inline int
@@ -120,35 +113,26 @@ __lru_find(int n, struct cacheline_entry (*cache)[n][CACHE_WAYS], struct cacheli
 /*
  * "Turn in" a line so that it becomes the LRU.
  * Normally this function is called BEFORE invalidating a line.
+ * NOTE: desc->way must be properly set upon calling this function.
  */
 static inline void
 __lru_turn_in(int n, struct cacheline_entry (*cache)[n][CACHE_WAYS], struct cacheline_desc *desc, int type)
 {
+    struct cacheline_entry *lru_entry;
     int way;
-    int age = -1;
+
+    if (desc->way == -1)
+	printf("warning: %s: desc->way == unknown\n", __func__);
+
+    lru_entry = &cache[desc->cpu][desc->idx][desc->way];
 
     for (way = 0; way < CACHE_WAYS; way++) {
 	struct cacheline_entry *entry = &cache[desc->cpu][desc->idx][way];
 
-	if (entry_match(entry, desc->tag, type)) {
-	    age = entry->age;
-	    break;
-	}
-    }
-
-    if (age == -1)
-	printf("%s: could not find valid cacheline\n", __func__);
-
-    for (way = 0; way < CACHE_WAYS; way++) {
-	struct cacheline_entry *entry = &cache[desc->cpu][desc->idx][way];
-
-	if (entry_match(entry, desc->tag, type)) {
-	    entry->age = CACHE_WAYS - 1;
-	    continue;
-	}
-	if (entry->age > age)
+	if (entry->age > lru_entry->age)
 	    entry->age--;
     }
+    lru_entry->age = CACHE_WAYS - 1;
 }
 
 static inline void
