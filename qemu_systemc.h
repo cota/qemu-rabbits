@@ -25,12 +25,15 @@
 #define MEM_LIMIT           0x8000000
 
 #ifdef IMPLEMENT_COMBINED_CACHE
-#define DCACHE_LINES		512
-#define ICACHE_LINES		DCACHE_LINES
+#define DCACHE_LINES_BITS	9
+#define ICACHE_LINES_BITS	DCACHE_LINES_BITS
 #else
-#define DCACHE_LINES        256
-#define ICACHE_LINES        256
+#define DCACHE_LINES_BITS	8
+#define ICACHE_LINES_BITS	8
 #endif /* IMPLEMENT_COMBINED_CACHE */
+
+#define DCACHE_LINES		BIT(DCACHE_LINES_BITS)
+#define ICACHE_LINES		BIT(ICACHE_LINES_BITS)
 
 #define CACHE_BITS_TO_MASK(bits)	(BIT(bits) - 1)
 
@@ -45,16 +48,33 @@
 #define CACHE_WAYS	BIT(CACHE_ASSOC)
 #define CACHE_WAYS_MASK	(CACHE_WAYS - 1)
 
+/*
+ * As the associativity increases, so does the number of bits per tag.
+ * Conversely, n_bits(index) diminishes. Examples:
+ *
+ * | tag      | idx   | line | -> direct mapped
+ * | tag        | idx | line | -> 2-way set-associative
+ * | tag         |idx | line | -> 4-way
+ * | tag          |idx| line | -> 8-way
+ *
+ * Note that n_bits(index) = log(lines per set), whereas the tag takes one
+ * bit to the right each time the associativity is increased.
+ * Tag and index do not overlap; if this was implemented in hardware,
+ * this point would become important.
+ */
+#define TAG_SHIFT(cache_bits)	(CACHE_LINE_BITS + (cache_bits) - CACHE_ASSOC)
+#define IDX_SHIFT		CACHE_LINE_BITS
 /* Lines Per Set (LPS) */
 #define DCACHE_LPS	(DCACHE_LINES >> CACHE_ASSOC)
 #define ICACHE_LPS	(ICACHE_LINES >> CACHE_ASSOC)
 
-/* XXX remove idx bits from the tag */
-#define __addr_to_tag(addr)	((addr) >> CACHE_LINE_BITS)
+#define __addr_to_tag(addr, cache_bits)	((addr) >> TAG_SHIFT(cache_bits))
+#define dcache_addr_to_tag(addr)	__addr_to_tag(addr, DCACHE_LINES_BITS)
+#define icache_addr_to_tag(addr)	__addr_to_tag(addr, ICACHE_LINES_BITS)
 #define __addr_to_ofs(addr)	((addr) & CACHE_LINE_MASK)
 
-#define __cache_tag_to_idx(tag, lines)	((tag) & ((lines) - 1))
-#define dcache_tag_to_idx(tag)		__cache_tag_to_idx (tag,  DCACHE_LPS)
-#define icache_tag_to_idx(tag)		__cache_tag_to_idx (tag,  ICACHE_LPS)
+#define __cache_addr_to_idx(addr, lps) (((addr) >> IDX_SHIFT) & (lps - 1))
+#define dcache_addr_to_idx(addr)	__cache_addr_to_idx(addr, DCACHE_LPS)
+#define icache_addr_to_idx(addr)	__cache_addr_to_idx(addr, ICACHE_LPS)
 
 #endif

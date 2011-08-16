@@ -1724,8 +1724,8 @@ data_cache_access ()
     struct cacheline_desc line[1];
 
     line->cpu = cpu_single_env->cpu_index;
-    line->tag = __addr_to_tag(addr);
-    line->idx = dcache_tag_to_idx(line->tag);
+    line->tag = dcache_addr_to_tag(addr);
+    line->idx = dcache_addr_to_idx(addr);
     line->way = -1;
 
 #ifdef DEBUG
@@ -1882,9 +1882,9 @@ write_access (unsigned long addr, int nb, unsigned long val)
     struct cacheline_desc line[1];
 
     line->cpu = cpu_single_env->cpu_index;
-    line->tag = __addr_to_tag(addr);
+    line->tag = dcache_addr_to_tag(addr);
     line->way = -1;
-    line->idx = dcache_tag_to_idx(line->tag);
+    line->idx = dcache_addr_to_idx(addr);
 
     int ninstr = s_crt_nr_cycles_instr;
 
@@ -1975,8 +1975,8 @@ instruction_cache_access (unsigned long addr)
 {
     struct cacheline_desc line[1];
     line->cpu = cpu_single_env->cpu_index;
-    line->tag = __addr_to_tag(addr);
-    line->idx = icache_tag_to_idx(line->tag);
+    line->tag = icache_addr_to_tag(addr);
+    line->idx = icache_addr_to_idx(addr);
     line->way = -1;
 
 #ifdef DEBUG
@@ -2023,10 +2023,10 @@ void
 qemu_invalidate_address (qemu_instance *instance, unsigned long addr, int src_idx)
 {
     struct cacheline_desc dline[1], iline[1];
-    dline->tag = __addr_to_tag(addr);
-    dline->idx = dcache_tag_to_idx(dline->tag);
-    iline->tag = __addr_to_tag(addr);
-    iline->idx = icache_tag_to_idx(iline->tag);
+    dline->tag = dcache_addr_to_tag(addr);
+    dline->idx = dcache_addr_to_idx(addr);
+    iline->tag = icache_addr_to_tag(addr);
+    iline->idx = icache_addr_to_idx(addr);
 
 #ifdef DEBUG
     printf("inv addr %08lx src %d\n", addr, src_idx);
