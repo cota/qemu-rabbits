@@ -10,9 +10,18 @@ struct cacheline {
     uint8_t	data[CACHE_LINE_BYTES];
 };
 
+/*
+ * Types of cache line entries
+ * Note that these are ignored if !COMBINED_CACHES, see entry_match() below.
+ */
+#define QEMU_CACHE_NONE	0
+#define QEMU_CACHE_DATA	1
+#define QEMU_CACHE_INST	2
+
 struct cacheline_entry {
     unsigned long	tag;
     int8_t		age;
+    int8_t		type;
 };
 
 /* Use -1 for an unknown way, to be retrieved by the helpers below. */
@@ -28,6 +37,20 @@ static inline void print_cacheline_desc(const struct cacheline_desc *desc)
     printf("cl %p: cpu %d way %2d tag 0x%08lx idx 0x%x\n",
 	   desc, desc->cpu, desc->way, desc->tag, desc->idx);
 }
+
+#ifdef IMPLEMENT_COMBINED_CACHE
+static inline int
+entry_match(const struct cacheline_entry *entry, unsigned long tag, int type)
+{
+    return entry->tag == tag && entry->type == type;
+}
+#else /* !COMBINED */
+static inline int
+entry_match(const struct cacheline_entry *entry, unsigned long tag, int type)
+{
+    return entry->tag == tag;
+}
+#endif
 
 /*
  * Cache Read/Write rationale
@@ -46,7 +69,7 @@ static inline void print_cacheline_desc(const struct cacheline_desc *desc)
 
 /* Note: line->way must be properly set upon calling this function */
 static inline void
-__lru_update(int n, struct cacheline_entry (*cache)[n][CACHE_WAYS], struct cacheline_desc *desc)
+__lru_update(int n, struct cacheline_entry (*cache)[n][CACHE_WAYS], struct cacheline_desc *desc, int type)
 {
     int age;
     int way;
@@ -54,7 +77,7 @@ __lru_update(int n, struct cacheline_entry (*cache)[n][CACHE_WAYS], struct cache
     for (way = 0; way < CACHE_WAYS; way++) {
 	struct cacheline_entry *entry = &cache[desc->cpu][desc->idx][way];
 
-	if (entry->tag == desc->tag) {
+	if (entry_match(entry, desc->tag, type)) {
 	    age = entry->age;
 	    break;
 	}
@@ -63,7 +86,7 @@ __lru_update(int n, struct cacheline_entry (*cache)[n][CACHE_WAYS], struct cache
     for (way = 0; way < CACHE_WAYS; way++) {
 	struct cacheline_entry *entry = &cache[desc->cpu][desc->idx][way];
 
-	if (entry->tag == desc->tag) {
+	if (entry_match(entry, desc->tag, type)) {
 	    entry->age = 0;
 	    continue;
 	}
@@ -99,7 +122,7 @@ __lru_find(int n, struct cacheline_entry (*cache)[n][CACHE_WAYS], struct cacheli
  * Normally this function is called BEFORE invalidating a line.
  */
 static inline void
-__lru_turn_in(int n, struct cacheline_entry (*cache)[n][CACHE_WAYS], struct cacheline_desc *desc)
+__lru_turn_in(int n, struct cacheline_entry (*cache)[n][CACHE_WAYS], struct cacheline_desc *desc, int type)
 {
     int way;
     int age = -1;
@@ -107,7 +130,7 @@ __lru_turn_in(int n, struct cacheline_entry (*cache)[n][CACHE_WAYS], struct cach
     for (way = 0; way < CACHE_WAYS; way++) {
 	struct cacheline_entry *entry = &cache[desc->cpu][desc->idx][way];
 
-	if (entry->tag == desc->tag) {
+	if (entry_match(entry, desc->tag, type)) {
 	    age = entry->age;
 	    break;
 	}
@@ -119,7 +142,7 @@ __lru_turn_in(int n, struct cacheline_entry (*cache)[n][CACHE_WAYS], struct cach
     for (way = 0; way < CACHE_WAYS; way++) {
 	struct cacheline_entry *entry = &cache[desc->cpu][desc->idx][way];
 
-	if (entry->tag == desc->tag) {
+	if (entry_match(entry, desc->tag, type)) {
 	    entry->age = CACHE_WAYS - 1;
 	    continue;
 	}
@@ -135,15 +158,17 @@ dcache_invalidate(struct cacheline_entry (*cache)[DCACHE_LPS][CACHE_WAYS], struc
     printf("inv : ");
     print_cacheline_desc(desc);
 #endif
-    __lru_turn_in(DCACHE_LPS, cache, desc);
+    __lru_turn_in(DCACHE_LPS, cache, desc, QEMU_CACHE_DATA);
     cache[desc->cpu][desc->idx][desc->way].tag = ~0;
+    cache[desc->cpu][desc->idx][desc->way].type = QEMU_CACHE_NONE;
 }
 
 static inline void
 icache_invalidate(struct cacheline_entry (*cache)[ICACHE_LPS][CACHE_WAYS], struct cacheline_desc *desc)
 {
-    __lru_turn_in(ICACHE_LPS, cache, desc);
+    __lru_turn_in(ICACHE_LPS, cache, desc, QEMU_CACHE_INST);
     cache[desc->cpu][desc->idx][desc->way].tag = ~0;
+    cache[desc->cpu][desc->idx][desc->way].type = QEMU_CACHE_NONE;
 }
 
 /*
@@ -152,17 +177,17 @@ icache_invalidate(struct cacheline_entry (*cache)[ICACHE_LPS][CACHE_WAYS], struc
  * Otherwise return 0.
  */
 static inline int
-__cache_hit(int n, struct cacheline_entry (*cache)[n][CACHE_WAYS], struct cacheline_desc *desc, int update)
+__cache_hit(int n, struct cacheline_entry (*cache)[n][CACHE_WAYS], struct cacheline_desc *desc, int type, int update)
 {
     int way;
 
     for (way = 0; way < CACHE_WAYS; way++) {
 	struct cacheline_entry *entry = &cache[desc->cpu][desc->idx][way];
 
-	if (entry->tag == desc->tag) {
+	if (entry_match(entry, desc->tag, type)) {
 	    desc->way = way;
 	    if (update)
-		__lru_update(n, cache, desc);
+		__lru_update(n, cache, desc, type);
 #ifdef DEBUG
 	    printf("hit : ");
 	    print_cacheline_desc(desc);
@@ -180,25 +205,25 @@ __cache_hit(int n, struct cacheline_entry (*cache)[n][CACHE_WAYS], struct cachel
 static inline int
 dcache_hit(struct cacheline_entry (*cache)[DCACHE_LPS][CACHE_WAYS], struct cacheline_desc *desc)
 {
-    return __cache_hit(DCACHE_LPS, cache, desc, 1);
+    return __cache_hit(DCACHE_LPS, cache, desc, QEMU_CACHE_DATA, 1);
 }
 
 static inline int
 dcache_hit_no_update(struct cacheline_entry (*cache)[DCACHE_LPS][CACHE_WAYS], struct cacheline_desc *desc)
 {
-    return __cache_hit(DCACHE_LPS, cache, desc, 0);
+    return __cache_hit(DCACHE_LPS, cache, desc, QEMU_CACHE_DATA, 0);
 }
 
 static inline int
 icache_hit(struct cacheline_entry (*cache)[ICACHE_LPS][CACHE_WAYS], struct cacheline_desc *desc)
 {
-    return __cache_hit(ICACHE_LPS, cache, desc, 1);
+    return __cache_hit(ICACHE_LPS, cache, desc, QEMU_CACHE_INST, 1);
 }
 
 static inline int
 icache_hit_no_update(struct cacheline_entry (*cache)[ICACHE_LPS][CACHE_WAYS], struct cacheline_desc *desc)
 {
-    return __cache_hit(ICACHE_LPS, cache, desc, 0);
+    return __cache_hit(ICACHE_LPS, cache, desc, QEMU_CACHE_INST, 0);
 }
 
 /*
@@ -207,27 +232,31 @@ icache_hit_no_update(struct cacheline_entry (*cache)[ICACHE_LPS][CACHE_WAYS], st
  * update our corresponding cache entry.
  */
 static inline void
-__cache_refresh(int n, struct cacheline_entry (*cache)[n][CACHE_WAYS], struct cacheline_desc *desc)
+__cache_refresh(int n, struct cacheline_entry (*cache)[n][CACHE_WAYS], struct cacheline_desc *desc, int type)
 {
+    struct cacheline_entry *entry;
+
     if (desc->way != -1)
 	printf("warning: %s: invalid way value: (%d) != -1\n", __func__, desc->way);
 
     desc->way = __lru_find(n, cache, desc);
 
-    cache[desc->cpu][desc->idx][desc->way].tag = desc->tag;
-    __lru_update(n, cache, desc);
+    entry = &cache[desc->cpu][desc->idx][desc->way];
+    entry->tag = desc->tag;
+    entry->type = type;
+    __lru_update(n, cache, desc, type);
 }
 
 static inline void
 dcache_refresh(struct cacheline_entry (*cache)[DCACHE_LPS][CACHE_WAYS], struct cacheline_desc *desc)
 {
-    __cache_refresh(DCACHE_LPS, cache, desc);
+    __cache_refresh(DCACHE_LPS, cache, desc, QEMU_CACHE_DATA);
 }
 
 static inline void
 icache_refresh(struct cacheline_entry (*cache)[ICACHE_LPS][CACHE_WAYS], struct cacheline_desc *desc)
 {
-    __cache_refresh(ICACHE_LPS, cache, desc);
+    __cache_refresh(ICACHE_LPS, cache, desc, QEMU_CACHE_INST);
 }
 
 

@@ -349,6 +349,7 @@ static void init_cacheline_entry(struct cacheline_entry *entry, int age)
 {
     entry->tag = ~0;
     entry->age = age;
+    entry->type = QEMU_CACHE_NONE;
 }
 
 void
