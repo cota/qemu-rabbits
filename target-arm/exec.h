@@ -91,3 +91,4 @@ float32 helper_recpe_f32(float32);
 float32 helper_rsqrte_f32(float32);
 void helper_neon_tbl(int rn, int maxindex);
 uint32_t helper_neon_mul_p8(uint32_t op1, uint32_t op2);
+void helper_set_teecr(CPUState *env, uint32_t val);

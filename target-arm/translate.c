@@ -4642,6 +4642,70 @@ static int disas_neon_data_insn(CPUState * env, DisasContext *s, uint32_t insn)
     return 0;
 }
 
+static int disas_cp14_read(CPUState * env, DisasContext *s, uint32_t insn)
+{
+    return 0;
+
+    int crn = (insn >> 16) & 0xf;
+    int crm = insn & 0xf;
+    int op1 = (insn >> 21) & 7;
+    int op2 = (insn >> 5) & 7;
+    int rt = (insn >> 12) & 0xf;
+
+    if (arm_feature(env, ARM_FEATURE_THUMB2EE)) {
+        if (op1 == 6 && crn == 0 && crm == 0 && op2 == 0) {
+            /* TEECR */
+            if (IS_USER(s))
+                return 1;
+            gen_op_movl_T0_teecr();
+            gen_movl_reg_T0(s, rt);
+            return 0;
+        }
+        if (op1 == 6 && crn == 1 && crm == 0 && op2 == 0) {
+            /* TEEHBR */
+            if (IS_USER(s) && (env->teecr & 1))
+                return 1;
+            gen_op_movl_T0_teehbr();
+            gen_movl_reg_T0(s, rt);
+            return 0;
+        }
+    }
+    fprintf(stderr, "Unknown cp14 read op1:%d crn:%d crm:%d op2:%d\n",
+            op1, crn, crm, op2);
+    return 1;
+}
+
+static int disas_cp14_write(CPUState * env, DisasContext *s, uint32_t insn)
+{
+    int crn = (insn >> 16) & 0xf;
+    int crm = insn & 0xf;
+    int op1 = (insn >> 21) & 7;
+    int op2 = (insn >> 5) & 7;
+    int rt = (insn >> 12) & 0xf;
+
+    if (arm_feature(env, ARM_FEATURE_THUMB2EE)) {
+        if (op1 == 6 && crn == 0 && crm == 0 && op2 == 0) {
+            /* TEECR */
+            if (IS_USER(s))
+                return 1;
+            gen_movl_T0_reg(s, rt);
+            gen_op_movl_teecr_T0();
+            return 0;
+        }
+        if (op1 == 6 && crn == 1 && crm == 0 && op2 == 0) {
+            /* TEEHBR */
+            if (IS_USER(s) && (env->teecr & 1))
+                return 1;
+            gen_movl_T0_reg(s, rt);
+            gen_op_movl_teehbr_T0();
+            return 0;
+        }
+    }
+    fprintf(stderr, "Unknown cp14 write op1:%d crn:%d crm:%d op2:%d\n",
+            op1, crn, crm, op2);
+    return 1;
+}
+
 static int disas_coproc_insn(CPUState * env, DisasContext *s, uint32_t insn)
 {
     int cpnum;
@@ -4663,9 +4727,19 @@ static int disas_coproc_insn(CPUState * env, DisasContext *s, uint32_t insn)
     case 10:
     case 11:
 	return disas_vfp_insn (env, s, insn);
+    case 14:
+	/* Coprocessors 7-15 are architecturally reserved by ARM.
+           Unfortunately Intel decided to ignore this.  */
+        if (arm_feature(env, ARM_FEATURE_XSCALE))
+            goto board;
+        if (insn & (1 << 20))
+            return disas_cp14_read(env, s, insn);
+        else
+            return disas_cp14_write(env, s, insn);
     case 15:
 	return disas_cp15_insn (env, s, insn);
     default:
+    board:
 	/* Unknown coprocessor.  See if the board has hooked it.  */
 	return disas_cp_insn (env, s, insn);
     }

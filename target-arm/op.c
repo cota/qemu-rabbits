@@ -1357,6 +1357,26 @@ void OPPROTO op_movl_T0_cp15(void)
     FORCE_RET();
 }
 
+void OPPROTO op_movl_teecr_T0(void)
+{
+    helper_set_teecr(env, T0);
+}
+
+void OPPROTO op_movl_teehbr_T0(void)
+{
+    env->teehbr = T0;
+}
+
+void OPPROTO op_movl_T0_teecr(void)
+{
+    T0 = env->teecr;
+}
+
+void OPPROTO op_movl_T0_teehbr(void)
+{
+    T0 = env->teehbr;
+}
+
 /* Access to user mode registers from privileged modes.  */
 void OPPROTO op_movl_T0_user(void)
 {

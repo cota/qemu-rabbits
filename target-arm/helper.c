@@ -86,6 +86,7 @@ static void cpu_reset_model_id(CPUARMState *env, uint32_t id)
         set_feature(env, ARM_FEATURE_VFP);
         set_feature(env, ARM_FEATURE_VFP3);
         set_feature(env, ARM_FEATURE_NEON);
+        set_feature(env, ARM_FEATURE_THUMB2EE);
         env->vfp.xregs[ARM_VFP_FPSID] = 0x410330c0;
         env->vfp.xregs[ARM_VFP_MVFR0] = 0x11110222;
         env->vfp.xregs[ARM_VFP_MVFR1] = 0x00011100;
@@ -108,6 +109,7 @@ static void cpu_reset_model_id(CPUARMState *env, uint32_t id)
         set_feature(env, ARM_FEATURE_VFP);
         set_feature(env, ARM_FEATURE_VFP3);
         set_feature(env, ARM_FEATURE_NEON);
+        set_feature(env, ARM_FEATURE_THUMB2EE);
         set_feature(env, ARM_FEATURE_DIV);
         break;
     case ARM_CPUID_TI915T:
@@ -446,6 +448,11 @@ uint32_t helper_v7m_mrs(CPUState *env, int reg)
 {
     cpu_abort(env, "v7m_mrs %d\n", reg);
     return 0;
+}
+
+void helper_set_teecr(CPUState *env, uint32_t val)
+{
+    cpu_abort(env, "set_teecr %d\n", val);
 }
 
 void switch_mode(CPUState *env, int mode)
@@ -1723,6 +1730,15 @@ void helper_set_r13_banked(CPUState *env, int mode, uint32_t val)
 uint32_t helper_get_r13_banked(CPUState *env, int mode)
 {
     return env->banked_r13[bank_number(mode)];
+}
+
+void helper_set_teecr(CPUState *env, uint32_t val)
+{
+    val &= 1;
+    if (env->teecr != val) {
+        env->teecr = val;
+        tb_flush(env);
+    }
 }
 
 uint32_t helper_v7m_mrs(CPUState *env, int reg)
