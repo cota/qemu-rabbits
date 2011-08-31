@@ -131,7 +131,20 @@ typedef struct CPUARMState {
         uint32_t c15_i_max; /* Maximum D-cache dirty line index.  */
         uint32_t c15_i_min; /* Minimum D-cache dirty line index.  */
         uint32_t c15_threadid; /* TI debugger thread-ID.  */
+	uint32_t c15_pmnc; /* ARM11MP */
+        /*
+         * Instead of supporting interrupts for overflow, we just bend
+         * the ISA a little bit to provide 64-bit counters, hence the
+         * lo/hi regs.
+         */
+	uint32_t c15_ccnt_lo; /* ARM11MP */
+	uint32_t c15_pmn0_lo; /* ARM11MP */
+	uint32_t c15_pmn1_lo; /* ARM11MP */
+	uint32_t c15_ccnt_hi; /* hack */
+	uint32_t c15_pmn0_hi; /* hack */
+	uint32_t c15_pmn1_hi; /* hack */
     } cp15;
+    int64_t ccnt_offset;
 
     struct {
         uint32_t other_sp;

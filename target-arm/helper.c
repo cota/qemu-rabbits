@@ -6,6 +6,23 @@
 #include "exec-all.h"
 #include "memex.h"
 
+#define SAVE_ENV_BEFORE_CONSUME_SYSTEMC() \
+    do{\
+        qemu_instance   *_save_crt_qemu_instance = crt_qemu_instance; \
+        CPUState        *_save_cpu_single_env = cpu_single_env; \
+        CPUState        *_save_env = env; \
+        crt_qemu_instance = NULL; \
+        env = NULL; \
+        cpu_single_env = NULL; \
+        unsigned char   _save_b_use_backdoor = b_use_backdoor
+
+#define RESTORE_ENV_AFTER_CONSUME_SYSTEMC() \
+        crt_qemu_instance = _save_crt_qemu_instance; \
+        cpu_single_env = _save_cpu_single_env; \
+        env = _save_env; \
+        b_use_backdoor = _save_b_use_backdoor; \
+    }while (0)
+
 extern unsigned long get_phys_addr_gdb (unsigned long addr);
 
 static uint32_t cortexa8_cp15_c0_c1[8] =
@@ -1162,6 +1179,44 @@ static uint32_t extended_mpu_ap_bits(uint32_t val)
     return ret;
 }
 
+static uint64_t __qemu_get_no_cycles(CPUState *env)
+{
+    uint64_t cycles;
+
+    SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
+    cycles = _save_crt_qemu_instance->systemc.systemc_qemu_get_no_cycles(_save_cpu_single_env->qemu.sc_obj);
+    RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
+
+    return cycles;
+}
+
+static uint64_t qemu_get_no_cycles(CPUState *env)
+{
+    unsigned int rshift = env->cp15.c15_pmnc & BIT(3) ? 6 : 0;
+    uint64_t cycles = __qemu_get_no_cycles(env) - env->ccnt_offset;
+
+    return cycles >> rshift;
+}
+
+/* Reset the offset to start counting from the given value */
+static inline void ccnt_offset_reset(CPUState *env, uint64_t value)
+{
+    env->ccnt_offset = __qemu_get_no_cycles(env) - value;
+}
+
+static inline void ccnt_update(CPUState *env)
+{
+    uint64_t cycles = qemu_get_no_cycles(env);
+
+    env->cp15.c15_ccnt_lo = cycles & ((1ULL << 32) - 1);
+    env->cp15.c15_ccnt_hi = cycles >> 32;
+}
+
+static inline int counters_are_enabled(const CPUARMState *s)
+{
+    return s->cp15.c15_pmnc & BIT(0);
+}
+
 void helper_set_cp15(CPUState *env, uint32_t insn, uint32_t val)
 {
     int op1;
@@ -1512,6 +1567,64 @@ void helper_set_cp15(CPUState *env, uint32_t insn, uint32_t val)
                 goto bad_reg;
             }
         }
+        if (ARM_CPUID(env) == ARM_CPUID_ARM11MPCORE) {
+            switch (crm) {
+            case 12:
+                switch (op2) {
+                    case 0: /* PMNC: Performance Monitor Control Register */
+                    val &= 0x0ffff77f;
+
+                    /* reset ccnt */
+                    if (val & BIT(2)) {
+                        env->cp15.c15_ccnt_lo = 0;
+                        env->cp15.c15_ccnt_hi = 0;
+                        /* if already running, update offset */
+                        if (counters_are_enabled(env))
+                            ccnt_offset_reset(env, 0);
+                    }
+
+                    /* enable counters --> start counting offset */
+                    if ((val & BIT(0)) && !counters_are_enabled(env)) {
+
+                        uint64_t currcount = env->cp15.c15_ccnt_hi;
+                        currcount <<= 32;
+                        currcount |= env->cp15.c15_ccnt_lo;
+
+                        ccnt_offset_reset(env, currcount);
+                    }
+
+                    /* disable counters -> get a last ccnt update */
+                    if (!(val & BIT(0)) && counters_are_enabled(env))
+                        ccnt_update(env);
+
+                    env->cp15.c15_pmnc = val;
+                    break;
+                case 1: /* CCNT: Cycle Counter Register */
+                    env->cp15.c15_ccnt_lo = val;
+                    break;
+                case 2: /* PMN0: Count Register 0 */
+                    env->cp15.c15_pmn0_lo = val;
+                    break;
+                case 3: /* PMN1: Count Register 1 */
+                    env->cp15.c15_pmn1_lo = val;
+                    break;
+                case 4:
+                    env->cp15.c15_ccnt_hi = val;
+                    break;
+                case 5:
+                    env->cp15.c15_pmn0_hi = val;
+                    break;
+                case 6:
+                    env->cp15.c15_pmn1_hi = val;
+                    break;
+                default:
+                    goto bad_reg;
+                }
+                break;
+            default:
+                goto bad_reg;
+            }
+        }
         break;
     }
     return;
@@ -1829,6 +1942,32 @@ uint32_t helper_get_cp15(CPUState *env, uint32_t insn)
             }
             goto bad_reg;
         }
+	if (ARM_CPUID(env) == ARM_CPUID_ARM11MPCORE) {
+	    switch (crm) {
+	    case 12:
+		switch (op2) {
+		case 0: /* PMNC: Performance Monitor Control Register */
+		    return env->cp15.c15_pmnc;
+		case 1: /* CCNT: Cycle Counter Register */
+		    if (env->cp15.c15_pmnc & BIT(0))
+                        ccnt_update(env);
+		    return env->cp15.c15_ccnt_lo;
+		case 2: /* PMN0: Count Register 0 */
+		case 3: /* PMN1: Count Register 1 */
+                    return 0;
+                case 4:
+		    return env->cp15.c15_ccnt_hi;
+                case 5:
+                case 6:
+                    return 0;
+		default:
+		    goto bad_reg;
+		}
+		break;
+	    default:
+		goto bad_reg;
+	    }
+	}
         return 0;
     }
 bad_reg:
