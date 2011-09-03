@@ -46,7 +46,7 @@ static unsigned long last_decoded_pc_addr = 0;
 #define ENABLE_ARCH_6T2   arm_feature(env, ARM_FEATURE_THUMB2)
 #define ENABLE_ARCH_7     arm_feature(env, ARM_FEATURE_V7)
 
-#define ARCH(x) if (!ENABLE_ARCH_##x) goto illegal_op;
+#define ARCH(x) do { if (!ENABLE_ARCH_##x) goto illegal_op; } while(0)
 
 /* internal defines */
 typedef struct DisasContext {
@@ -4761,6 +4761,55 @@ static int disas_coproc_insn(CPUState * env, DisasContext *s, uint32_t insn)
     }
 }
 
+static void gen_load_exclusive(DisasContext *s, int dest, int dest2,
+                               int addr, int size)
+{
+    gen_movl_T1_reg(s, addr);
+    switch (size) {
+    case 0:
+        gen_ldst(ldbex, s);
+        break;
+    case 1:
+        gen_ldst(ldwex, s);
+        break;
+    case 2:
+        gen_ldst(ldlex, s);
+        break;
+    case 3:
+        gen_ldst(ldqex, s);
+        gen_movl_reg_T1(s, dest2);
+        break;
+    default:
+        abort();
+    }
+    gen_movl_reg_T0(s, dest);
+}
+
+static void gen_store_exclusive(DisasContext *s, int outcome, int orig, int orig2,
+                                int addr, int size)
+{
+    gen_movl_T1_reg(s, addr);
+    gen_movl_T0_reg(s, orig);
+    switch (size) {
+    case 0:
+        gen_ldst(stbex, s);
+        break;
+    case 1:
+        gen_ldst(stwex, s);
+        break;
+    case 2:
+        gen_ldst(stlex, s);
+        break;
+    case 3:
+        gen_movl_T2_reg(s, orig2);
+        gen_ldst(stqex, s);
+        break;
+    default:
+        abort();
+    }
+    gen_movl_reg_T0(s, outcome);
+}
+
 static void disas_arm_insn (CPUState * env, DisasContext *s)
 {
     unsigned int cond, insn, val, op1, i, shift, rm, rs, rn, rd, sh;
@@ -5431,21 +5480,47 @@ static void disas_arm_insn (CPUState * env, DisasContext *s)
                     rd = (insn >> 12) & 0xf;
                     if (insn & (1 << 23)) {
                         /* load/store exclusive */
-                        gen_movl_T1_reg(s, rn);
+                        op1 = (insn >> 21) & 0x3;
+                        if (op1)
+                            ARCH(6K);
+                        else
+                            ARCH(6);
                         if (insn & (1 << 20)) {
-                            if (insn & (1 << 22))
-                                gen_ldst(ldbex, s);
-                            else
-                                gen_ldst(ldlex, s);
+			    switch (op1) {
+                            case 0: /* ldrex */
+                                gen_load_exclusive(s, rd, 15, rn, 2);
+                                break;
+                            case 1: /* ldrexd */
+                                gen_load_exclusive(s, rd, rd + 1, rn, 3);
+                                break;
+                            case 2: /* ldrexb */
+                                gen_load_exclusive(s, rd, 15, rn, 0);
+                                break;
+                            case 3: /* ldrexh */
+                                gen_load_exclusive(s, rd, 15, rn, 1);
+                                break;
+                            default:
+                                abort();
+                            }
                         } else {
                             rm = insn & 0xf;
-                            gen_movl_T0_reg(s, rm);
-                            if (insn & (1 << 22))
-                                gen_ldst(stbex, s);
-                            else
-                                gen_ldst(stlex, s);
+                            switch (op1) {
+                            case 0:  /*  strex */
+                                gen_store_exclusive(s, rd, rm, 15, rn, 2);
+                                break;
+                            case 1: /*  strexd */
+                                gen_store_exclusive(s, rd, rm, rm + 1, rn, 3);
+                                break;
+                            case 2: /*  strexb */
+                                gen_store_exclusive(s, rd, rm, 15, rn, 0);
+                                break;
+                            case 3: /* strexh */
+                                gen_store_exclusive(s, rd, rm, 15, rn, 1);
+                                break;
+                            default:
+                                abort();
+                            }
                         }
-                        gen_movl_reg_T0(s, rd);
                     } else
                     {
                         /* SWP instruction */
@@ -6210,14 +6285,14 @@ static int disas_thumb2_insn(CPUState *env, DisasContext *s, uint16_t insn_hw1)
                 }
             } else if ((insn & (1 << 23)) == 0) {
                 /* Load/store exclusive word.  */
-                gen_movl_T0_reg(s, rd);
                 gen_movl_T1_reg(s, rn);
+                gen_op_addl_T1_im((insn & 0xff) << 2);
+                gen_movl_reg_T1(s, rn);
                 if (insn & (1 << 20)) {
-                    gen_ldst(ldlex, s);
+                    gen_load_exclusive(s, rs, 15, rn, 2);
                 } else {
-                    gen_ldst(stlex, s);
+                    gen_store_exclusive(s, rd, rs, 15, rn, 2);
                 }
-                gen_movl_reg_T0(s, rd);
             } else if ((insn & (1 << 6)) == 0) {
                 /* Table Branch.  */
                 if (rn == 15) {
@@ -6238,41 +6313,15 @@ static int disas_thumb2_insn(CPUState *env, DisasContext *s, uint16_t insn_hw1)
                 s->is_jmp = DISAS_JUMP;
             } else {
                 /* Load/store exclusive byte/halfword/doubleword.  */
+                ARCH(7);
                 op = (insn >> 4) & 0x3;
-                gen_movl_T1_reg(s, rn);
+                if (op == 2) {
+                    goto illegal_op;
+                }
                 if (insn & (1 << 20)) {
-                    switch (op) {
-                    case 0:
-                        gen_ldst(ldbex, s);
-                        break;
-                    case 1:
-                        gen_ldst(ldwex, s);
-                        break;
-                    case 3:
-                        gen_ldst(ldqex, s);
-                        gen_movl_reg_T1(s, rd);
-                        break;
-                    default:
-                        goto illegal_op;
-                    }
-                    gen_movl_reg_T0(s, rs);
+                    gen_load_exclusive(s, rs, rd, rn, op);
                 } else {
-                    gen_movl_T0_reg(s, rs);
-                    switch (op) {
-                    case 0:
-                        gen_ldst(stbex, s);
-                        break;
-                    case 1:
-                        gen_ldst(stwex, s);
-                        break;
-                    case 3:
-                        gen_movl_T2_reg(s, rd);
-                        gen_ldst(stqex, s);
-                        break;
-                    default:
-                        goto illegal_op;
-                    }
-                    gen_movl_reg_T0(s, rm);
+                    gen_store_exclusive(s, rm, rs, rd, rn, op);
                 }
             }
         } else {
