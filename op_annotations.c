@@ -51,6 +51,7 @@ op_inc_crt_nr_cycles_instr(void)
 {
   extern unsigned long s_crt_nr_cycles_instr;
   s_crt_nr_cycles_instr += PARAM1;
+  perf_event_inc(env, PERF_INSTR_EXEC);
 }
 
 #ifdef COUNT_INSTR_FOR_STATISTICS

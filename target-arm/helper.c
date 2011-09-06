@@ -1212,9 +1212,53 @@ static inline void ccnt_update(CPUState *env)
     env->cp15.c15_ccnt_hi = cycles >> 32;
 }
 
+static void perf_update_event_source(CPUARMState *s, uint32_t val, int shift, int idx)
+{
+    struct perf_event *event = &s->perf_events[idx];
+
+    event->type = (val >> shift) & 0xff;
+}
+
+static void perf_count_set_lo(struct perf_event *event, uint64_t val)
+{
+    event->count &= ~((1ULL << 32) - 1);
+    event->count |= val & ((1ULL << 32) - 1);
+}
+
+static void perf_count_set_hi(struct perf_event *event, uint64_t val)
+{
+    event->count &= ~(((1ULL << 32) - 1) << 32);
+    event->count |= val << 32;
+}
+
+static uint32_t perf_count_get_lo(struct perf_event *event)
+{
+    return event->count & ((1ULL << 32) - 1);
+}
+
+static uint32_t perf_count_get_hi(struct perf_event *event)
+{
+    return event->count >> 32;
+}
+
 static inline int counters_are_enabled(const CPUARMState *s)
 {
     return s->cp15.c15_pmnc & BIT(0);
+}
+
+void perf_event_add(CPUARMState *s, enum perf_types type, int64_t val)
+{
+    int i;
+
+    if (!counters_are_enabled(s))
+        return;
+
+    for (i = 0; i < ARM11MPCORE_PERF_COUNTERS; i++) {
+        struct perf_event *event = &s->perf_events[i];
+
+        if (event->type == type)
+            event->count += val;
+    }
 }
 
 void helper_set_cp15(CPUState *env, uint32_t insn, uint32_t val)
@@ -1574,6 +1618,9 @@ void helper_set_cp15(CPUState *env, uint32_t insn, uint32_t val)
                     case 0: /* PMNC: Performance Monitor Control Register */
                     val &= 0x0ffff77f;
 
+                    perf_update_event_source(env, val, 20, 0);
+                    perf_update_event_source(env, val, 12, 1);
+
                     /* reset ccnt */
                     if (val & BIT(2)) {
                         env->cp15.c15_ccnt_lo = 0;
@@ -1603,19 +1650,19 @@ void helper_set_cp15(CPUState *env, uint32_t insn, uint32_t val)
                     env->cp15.c15_ccnt_lo = val;
                     break;
                 case 2: /* PMN0: Count Register 0 */
-                    env->cp15.c15_pmn0_lo = val;
+                    perf_count_set_lo(&env->perf_events[0], val);
                     break;
                 case 3: /* PMN1: Count Register 1 */
-                    env->cp15.c15_pmn1_lo = val;
+                    perf_count_set_lo(&env->perf_events[1], val);
                     break;
                 case 4:
                     env->cp15.c15_ccnt_hi = val;
                     break;
                 case 5:
-                    env->cp15.c15_pmn0_hi = val;
+                    perf_count_set_hi(&env->perf_events[0], val);
                     break;
                 case 6:
-                    env->cp15.c15_pmn1_hi = val;
+                    perf_count_set_hi(&env->perf_events[1], val);
                     break;
                 default:
                     goto bad_reg;
@@ -1953,13 +2000,15 @@ uint32_t helper_get_cp15(CPUState *env, uint32_t insn)
                         ccnt_update(env);
 		    return env->cp15.c15_ccnt_lo;
 		case 2: /* PMN0: Count Register 0 */
+                    return perf_count_get_lo(&env->perf_events[0]);
 		case 3: /* PMN1: Count Register 1 */
-                    return 0;
+                    return perf_count_get_lo(&env->perf_events[1]);
                 case 4:
 		    return env->cp15.c15_ccnt_hi;
                 case 5:
+                    return perf_count_get_hi(&env->perf_events[0]);
                 case 6:
-                    return 0;
+                    return perf_count_get_hi(&env->perf_events[1]);
 		default:
 		    goto bad_reg;
 		}

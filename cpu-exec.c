@@ -1738,6 +1738,8 @@ data_cache_access ()
     if (!dcache_hit(qi_dcache(crt_qemu_instance), line))
     {
         g_no_dcache_miss++;
+        perf_event_inc(env, PERF_DCACHE_RDMISS);
+        perf_event_inc(env, PERF_CACHE_MISS);
 	dcache_refresh(qi_dcache(crt_qemu_instance), line);
 
         #ifdef LOG_INFO_FOR_DEBUG
@@ -1767,6 +1769,9 @@ data_cache_access ()
         #else //IMPLEMENT_LATE_CACHES
         s_crt_ns_misses += NS_DCACHE_MISS;
         #endif
+    } else {
+        perf_event_inc(env, PERF_DCACHE_RDACCESS);
+        perf_event_inc(env, PERF_CACHE_HIT);
     }
     #endif
 
@@ -1938,6 +1943,8 @@ write_access (unsigned long addr, int nb, unsigned long val)
 #endif
     if (dcache_hit(qi_dcache(_save_crt_qemu_instance), line))
     {
+        perf_event_inc(_save_env, PERF_DCACHE_WRACCESS);
+        perf_event_inc(_save_env, PERF_CACHE_HIT);
         switch (nb)
         {
         case 1:
@@ -1956,6 +1963,10 @@ write_access (unsigned long addr, int nb, unsigned long val)
             printf ("QEMU, function %s, invalid nb %d\n", __FUNCTION__, nb);
             exit (1);
         }
+    } else {
+        perf_event_inc(_save_env, PERF_DCACHE_WRMISS);
+        perf_event_inc(_save_env, PERF_DCACHE_EVICTION);
+        perf_event_inc(_save_env, PERF_CACHE_MISS);
     }
     qemu_invalidate_address (_save_crt_qemu_instance, addr, line->cpu);
 
@@ -1990,6 +2001,8 @@ instruction_cache_access (unsigned long addr)
     if (!icache_hit(qi_icache(crt_qemu_instance), line))
     {
         g_no_icache_miss++;
+        perf_event_inc(env, PERF_ICACHE_MISS);
+        perf_event_inc(env, PERF_CACHE_MISS);
         icache_refresh(qi_icache(crt_qemu_instance), line);
 
         #ifdef IMPLEMENT_FULL_CACHES
@@ -2012,6 +2025,8 @@ instruction_cache_access (unsigned long addr)
         #else //cache late configuration
         s_crt_ns_misses += NS_ICACHE_MISS;
         #endif
+    } else {
+        perf_event_inc(env, PERF_CACHE_MISS);
     }
 }
 

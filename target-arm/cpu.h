@@ -57,6 +57,42 @@ typedef uint32_t ARMReadCPFunc(void *opaque, int cp_info,
 
 #define NB_MMU_MODES 2
 
+/*
+ * perf types enumeration for ARMv6MP taken from the kernel.
+ */
+enum perf_types {
+	PERF_ICACHE_MISS	= 0x0,
+	PERF_IBUF_STALL		= 0x1,
+	PERF_DDEP_STALL		= 0x2,
+	PERF_ITLB_MISS		= 0x3,
+	PERF_DTLB_MISS		= 0x4,
+	PERF_BR_EXEC		= 0x5,
+	PERF_BR_NOTPREDICT	= 0x6,
+	PERF_BR_MISPREDICT	= 0x7,
+	PERF_INSTR_EXEC		= 0x8,
+	PERF_DCACHE_RDACCESS	= 0xA,
+	PERF_DCACHE_RDMISS	= 0xB,
+	PERF_DCACHE_WRACCESS	= 0xC,
+	PERF_DCACHE_WRMISS	= 0xD,
+	PERF_DCACHE_EVICTION	= 0xE,
+	PERF_SW_PC_CHANGE	= 0xF,
+	PERF_MAIN_TLB_MISS	= 0x10,
+	PERF_EXPL_MEM_ACCESS	= 0x11,
+	PERF_LSU_FULL_STALL	= 0x12,
+	PERF_WBUF_DRAINED	= 0x13,
+	/* here we add our own events */
+	PERF_CACHE_HIT		= 0x14,
+	PERF_CACHE_MISS		= 0x15,
+	PERF_CPU_CYCLES		= 0xFF,
+};
+
+struct perf_event {
+    uint64_t		count;
+    enum perf_types	type;
+};
+
+#define ARM11MPCORE_PERF_COUNTERS	2
+
 /* We currently assume float and double are IEEE single and double
    precision respectively.
    Doing runtime conversions is tricky because VFP registers may contain
@@ -138,13 +174,11 @@ typedef struct CPUARMState {
          * lo/hi regs.
          */
 	uint32_t c15_ccnt_lo; /* ARM11MP */
-	uint32_t c15_pmn0_lo; /* ARM11MP */
-	uint32_t c15_pmn1_lo; /* ARM11MP */
 	uint32_t c15_ccnt_hi; /* hack */
-	uint32_t c15_pmn0_hi; /* hack */
-	uint32_t c15_pmn1_hi; /* hack */
+        /* for the configurable monitors, see below */
     } cp15;
     int64_t ccnt_offset;
+    struct perf_event perf_events[ARM11MPCORE_PERF_COUNTERS];
 
     struct {
         uint32_t other_sp;
@@ -230,6 +264,8 @@ int cpu_arm_exec(CPUARMState *s);
 void cpu_arm_close(CPUARMState *s);
 void do_interrupt(CPUARMState *);
 void switch_mode(CPUARMState *, int);
+void perf_event_add(CPUARMState *s, enum perf_types event, int64_t val);
+#define perf_event_inc(s, e)	perf_event_add((s), (e), 1)
 
 /* you can call this signal handler from your SIGBUS and SIGSEGV
    signal handlers to inform the virtual CPU of exceptions. non zero
