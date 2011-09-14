@@ -1233,12 +1233,12 @@ static void perf_count_set_hi(struct perf_event *event, uint64_t val)
 
 static uint32_t perf_count_get_lo(struct perf_event *event)
 {
-    return event->count & ((1ULL << 32) - 1);
+    return lower_32_bits(event->count);
 }
 
 static uint32_t perf_count_get_hi(struct perf_event *event)
 {
-    return event->count >> 32;
+    return upper_32_bits(event->count);
 }
 
 static inline int counters_are_enabled(const CPUARMState *s)

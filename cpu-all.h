@@ -126,6 +126,22 @@ static inline void tswap64s(uint64_t *s)
 #define bswaptls(s) bswap64s(s)
 #endif
 
+/**
+ * upper_32_bits - return bits 32-63 of a number
+ * @n: the number we're accessing
+ *
+ * A basic shift-right of a 64- or 32-bit quantity.  Use this to suppress
+ * the "right shift count >= width of type" warning when that quantity is
+ * 32-bits.
+ */
+#define upper_32_bits(n) ((uint32_t)(((n) >> 16) >> 16))
+
+/**
+ * lower_32_bits - return bits 0-31 of a number
+ * @n: the number we're accessing
+ */
+#define lower_32_bits(n) ((uint32_t)(n))
+
 /* NOTE: arm FPA is horrible as double 32 bit words are stored in big
    endian ! */
 typedef union {
