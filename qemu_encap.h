@@ -24,18 +24,21 @@ struct cacheline_entry {
     int8_t		type;
 };
 
-/* Use -1 for an unknown way, to be retrieved by the helpers below. */
+/*
+ * Use -1 for an unknown way, to be retrieved by the helpers below.
+ * @grp: on L1, denotes CPU; on L2; denotes bank.
+ */
 struct cacheline_desc {
     unsigned long	tag;
     int			idx;
-    int8_t		cpu;
+    int8_t		grp;
     int8_t		way;
 };
 
 static inline void print_cacheline_desc(const struct cacheline_desc *desc)
 {
-    printf("cl %p: cpu %d way %2d tag 0x%08lx idx 0x%x\n",
-	   desc, desc->cpu, desc->way, desc->tag, desc->idx);
+    printf("cl %p: grp %d way %2d tag 0x%08lx idx 0x%x\n",
+	   desc, desc->grp, desc->way, desc->tag, desc->idx);
 }
 
 #ifdef IMPLEMENT_COMBINED_CACHE
@@ -77,10 +80,10 @@ __lru_update(int n, struct cacheline_entry (*cache)[n][CACHE_WAYS], struct cache
     if (desc->way == -1)
 	printf("warning: %s: desc->way == -1\n", __func__);
 
-    mru_entry = &cache[desc->cpu][desc->idx][desc->way];
+    mru_entry = &cache[desc->grp][desc->idx][desc->way];
 
     for (way = 0; way < CACHE_WAYS; way++) {
-	struct cacheline_entry *entry = &cache[desc->cpu][desc->idx][way];
+	struct cacheline_entry *entry = &cache[desc->grp][desc->idx][way];
 
 	if (entry->age < mru_entry->age)
 	    entry->age++;
@@ -96,7 +99,7 @@ __lru_find(int n, struct cacheline_entry (*cache)[n][CACHE_WAYS], struct cacheli
     int way;
 
     for (way = 0; way < CACHE_WAYS; way++) {
-	struct cacheline_entry *entry = &cache[desc->cpu][desc->idx][way];
+	struct cacheline_entry *entry = &cache[desc->grp][desc->idx][way];
 
 	if (entry->age > oldest_so_far) {
 	    oldest_so_far = entry->age;
@@ -104,8 +107,8 @@ __lru_find(int n, struct cacheline_entry (*cache)[n][CACHE_WAYS], struct cacheli
 	}
     }
     if (oldest_so_far != CACHE_WAYS - 1) {
-	printf("%s: oldest cacheline seen of age %d on cpu%d idx %d\n",
-	      __func__, oldest_so_far, desc->cpu, desc->idx);
+	printf("%s: oldest cacheline seen of age %d on grp%d idx %d\n",
+	      __func__, oldest_so_far, desc->grp, desc->idx);
     }
     return oldest_way;
 }
@@ -124,10 +127,10 @@ __lru_turn_in(int n, struct cacheline_entry (*cache)[n][CACHE_WAYS], struct cach
     if (desc->way == -1)
 	printf("warning: %s: desc->way == unknown\n", __func__);
 
-    lru_entry = &cache[desc->cpu][desc->idx][desc->way];
+    lru_entry = &cache[desc->grp][desc->idx][desc->way];
 
     for (way = 0; way < CACHE_WAYS; way++) {
-	struct cacheline_entry *entry = &cache[desc->cpu][desc->idx][way];
+	struct cacheline_entry *entry = &cache[desc->grp][desc->idx][way];
 
 	if (entry->age > lru_entry->age)
 	    entry->age--;
@@ -143,16 +146,16 @@ dcache_invalidate(struct cacheline_entry (*cache)[DCACHE_LPS][CACHE_WAYS], struc
     print_cacheline_desc(desc);
 #endif
     __lru_turn_in(DCACHE_LPS, cache, desc, QEMU_CACHE_DATA);
-    cache[desc->cpu][desc->idx][desc->way].tag = ~0;
-    cache[desc->cpu][desc->idx][desc->way].type = QEMU_CACHE_NONE;
+    cache[desc->grp][desc->idx][desc->way].tag = ~0;
+    cache[desc->grp][desc->idx][desc->way].type = QEMU_CACHE_NONE;
 }
 
 static inline void
 icache_invalidate(struct cacheline_entry (*cache)[ICACHE_LPS][CACHE_WAYS], struct cacheline_desc *desc)
 {
     __lru_turn_in(ICACHE_LPS, cache, desc, QEMU_CACHE_INST);
-    cache[desc->cpu][desc->idx][desc->way].tag = ~0;
-    cache[desc->cpu][desc->idx][desc->way].type = QEMU_CACHE_NONE;
+    cache[desc->grp][desc->idx][desc->way].tag = ~0;
+    cache[desc->grp][desc->idx][desc->way].type = QEMU_CACHE_NONE;
 }
 
 /*
@@ -166,7 +169,7 @@ __cache_hit(int n, struct cacheline_entry (*cache)[n][CACHE_WAYS], struct cachel
     int way;
 
     for (way = 0; way < CACHE_WAYS; way++) {
-	struct cacheline_entry *entry = &cache[desc->cpu][desc->idx][way];
+	struct cacheline_entry *entry = &cache[desc->grp][desc->idx][way];
 
 	if (entry_match(entry, desc->tag, type)) {
 	    desc->way = way;
@@ -225,7 +228,7 @@ __cache_refresh(int n, struct cacheline_entry (*cache)[n][CACHE_WAYS], struct ca
 
     desc->way = __lru_find(n, cache, desc);
 
-    entry = &cache[desc->cpu][desc->idx][desc->way];
+    entry = &cache[desc->grp][desc->idx][desc->way];
     entry->tag = desc->tag;
     entry->type = type;
     __lru_update(n, cache, desc, type);
