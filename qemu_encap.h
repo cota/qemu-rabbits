@@ -94,7 +94,7 @@ __lru_update(int n, int n_ways, struct cacheline_entry (*cache)[n][n_ways],
 
 static inline int
 __lru_find(int n, int n_ways, struct cacheline_entry (*cache)[n][n_ways],
-           struct cacheline_desc *desc)
+           const struct cacheline_desc *desc)
 {
     int oldest_so_far = 0;
     int oldest_way = 0;
