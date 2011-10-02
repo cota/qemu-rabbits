@@ -446,7 +446,7 @@ int cpu_exec(CPUState *env1)
                 } else {
                     #if defined(TARGET_I386)
                     /* simulate a real cpu exception. On i386, it can
-                        trigger new exceptions, but we do not handle 
+                        trigger new exceptions, but we do not handle
                         double or triple faults yet. */
                     do_interrupt (env->exception_index,
                         env->exception_is_int, env->error_code, env->exception_next_eip, 0);
@@ -1494,7 +1494,7 @@ qemu_systemc_read_all (void *opaque, target_phys_addr_t offset,
     s_crt_nr_cycles_instr = 0;
 
     CACHE_LATE_SYNC_MISSES ();
-    
+
     if (ninstr)
     {
         _save_crt_qemu_instance->systemc.systemc_qemu_consume_instruction_cycles (
@@ -1538,7 +1538,7 @@ void just_synchronize (void)
 
     int ninstr = s_crt_nr_cycles_instr;
     s_crt_nr_cycles_instr = 0;
-    
+
     CACHE_LATE_SYNC_MISSES ();
 
     if (ninstr)
@@ -1592,14 +1592,14 @@ qemu_systemc_write_dw (void *opaque, target_phys_addr_t offset, uint32_t value)
     qemu_systemc_write_all (opaque, offset, value, 4, 1);
 }
 
-static CPUReadMemoryFunc *qemu_systemc_readfn[] = 
+static CPUReadMemoryFunc *qemu_systemc_readfn[] =
 {
     qemu_systemc_read_b,
     qemu_systemc_read_w,
     qemu_systemc_read_dw,
 };
 
-static CPUWriteMemoryFunc *qemu_systemc_writefn[] = 
+static CPUWriteMemoryFunc *qemu_systemc_writefn[] =
 {
     qemu_systemc_write_b,
     qemu_systemc_write_w,
@@ -1722,7 +1722,7 @@ data_cache_access ()
                 cpu_single_env->qemu.sc_obj, tmp_physaddr);
 
     unsigned long addr = tmp_physaddr;
-    
+
     #ifdef IMPLEMENT_CACHES
     struct cacheline_desc line[1];
 
@@ -2070,7 +2070,7 @@ static int gdb_condition (unsigned long addr)
     int                 gdbcpu = crt_qemu_instance->gdb->c_cpu_index;
     int                 i, nb;
     unsigned long       *paddr;
-    
+
     if (gdbrs == STATE_DETACH)
         return 0;
 
