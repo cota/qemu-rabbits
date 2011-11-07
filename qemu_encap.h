@@ -73,7 +73,7 @@ entry_match(const struct cacheline_entry *entry, unsigned long tag, int type)
 /* Note: line->way must be properly set upon calling this function */
 static inline void
 __lru_update(int n, int n_ways, struct cacheline_entry (*cache)[n][n_ways],
-             struct cacheline_desc *desc, int type)
+             struct cacheline_desc *desc)
 {
     struct cacheline_entry *mru_entry;
     int way;
@@ -122,7 +122,7 @@ __lru_find(int n, int n_ways, struct cacheline_entry (*cache)[n][n_ways],
  */
 static inline void
 __lru_turn_in(int n, int n_ways, struct cacheline_entry (*cache)[n][n_ways],
-              struct cacheline_desc *desc, int type)
+              struct cacheline_desc *desc)
 {
     struct cacheline_entry *lru_entry;
     int way;
@@ -148,7 +148,7 @@ dcache_invalidate(struct cacheline_entry (*cache)[DCACHE_LPS][CACHE_WAYS], struc
     printf("inv : ");
     print_cacheline_desc(desc);
 #endif
-    __lru_turn_in(DCACHE_LPS, CACHE_WAYS, cache, desc, QEMU_CACHE_DATA);
+    __lru_turn_in(DCACHE_LPS, CACHE_WAYS, cache, desc);
     cache[desc->grp][desc->idx][desc->way].tag = ~0;
     cache[desc->grp][desc->idx][desc->way].type = QEMU_CACHE_NONE;
 }
@@ -156,7 +156,7 @@ dcache_invalidate(struct cacheline_entry (*cache)[DCACHE_LPS][CACHE_WAYS], struc
 static inline void
 icache_invalidate(struct cacheline_entry (*cache)[ICACHE_LPS][CACHE_WAYS], struct cacheline_desc *desc)
 {
-    __lru_turn_in(ICACHE_LPS, CACHE_WAYS, cache, desc, QEMU_CACHE_INST);
+    __lru_turn_in(ICACHE_LPS, CACHE_WAYS, cache, desc);
     cache[desc->grp][desc->idx][desc->way].tag = ~0;
     cache[desc->grp][desc->idx][desc->way].type = QEMU_CACHE_NONE;
 }
@@ -178,7 +178,7 @@ __cache_hit(int n, int n_ways, struct cacheline_entry (*cache)[n][n_ways],
 	if (entry_match(entry, desc->tag, type)) {
 	    desc->way = way;
 	    if (update)
-		__lru_update(n, n_ways, cache, desc, type);
+		__lru_update(n, n_ways, cache, desc);
 #ifdef DEBUG
 	    printf("hit : ");
 	    print_cacheline_desc(desc);
@@ -236,7 +236,7 @@ __cache_refresh(int n, int n_ways, struct cacheline_entry (*cache)[n][n_ways],
     entry = &cache[desc->grp][desc->idx][desc->way];
     entry->tag = desc->tag;
     entry->type = type;
-    __lru_update(n, n_ways, cache, desc, type);
+    __lru_update(n, n_ways, cache, desc);
 }
 
 static inline void
