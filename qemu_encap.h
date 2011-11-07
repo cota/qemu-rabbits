@@ -73,7 +73,7 @@ entry_match(const struct cacheline_entry *entry, unsigned long tag, int type)
 /* Note: line->way must be properly set upon calling this function */
 static inline void
 __lru_update(int n, int n_ways, struct cacheline_entry (*cache)[n][n_ways],
-             struct cacheline_desc *desc)
+             const struct cacheline_desc *desc)
 {
     struct cacheline_entry *mru_entry;
     int way;
