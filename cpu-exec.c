@@ -1792,6 +1792,10 @@ data_cache_access ()
     #endif
 
     #ifdef IMPLEMENT_FULL_CACHES
+    #ifdef DEBUG
+    printf("%s: addr 0x%08lx cpu %d\n", __func__, addr, line->grp);
+    print_cacheline(&qi_dcache_data(crt_qemu_instance)[line->grp][line->idx][line->way]);
+    #endif
         return &qi_dcache_data(crt_qemu_instance)[line->grp][line->idx][line->way].data[__addr_to_ofs(addr)];
     #else
         #ifdef ONE_MEM_MODULE

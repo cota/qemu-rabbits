@@ -41,6 +41,18 @@ static inline void print_cacheline_desc(const struct cacheline_desc *desc)
 	   desc, desc->grp, desc->way, desc->tag, desc->idx);
 }
 
+static inline void print_cacheline(const struct cacheline *line)
+{
+    uint32_t *data = (uint32_t *)&line->data[0];
+    int i;
+
+    printf("(");
+    for (i = 0; i < CACHE_LINE_u32s; i++) {
+        printf("0x%08x%s", data[i], i == CACHE_LINE_BYTES - 4 ? "" : ",");
+    }
+    printf(")\n");
+}
+
 #ifdef IMPLEMENT_COMBINED_CACHE
 static inline int
 entry_match(const struct cacheline_entry *entry, unsigned long tag, int type)
