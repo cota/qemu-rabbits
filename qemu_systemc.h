@@ -25,15 +25,12 @@
 #define MEM_LIMIT           0x8000000
 
 #ifdef IMPLEMENT_COMBINED_CACHE
-#define DCACHE_LINES_BITS	9
-#define ICACHE_LINES_BITS	DCACHE_LINES_BITS
+#define DCACHE_BITS	14
+#define ICACHE_BITS	DCACHE_BITS
 #else
-#define DCACHE_LINES_BITS	8
-#define ICACHE_LINES_BITS	8
+#define DCACHE_BITS	13
+#define ICACHE_BITS	13
 #endif /* IMPLEMENT_COMBINED_CACHE */
-
-#define DCACHE_LINES		BIT(DCACHE_LINES_BITS)
-#define ICACHE_LINES		BIT(ICACHE_LINES_BITS)
 
 #define CACHE_BITS_TO_MASK(bits)	(BIT(bits) - 1)
 
@@ -49,6 +46,9 @@
 #define CACHE_WAYS	BIT(CACHE_ASSOC)
 #define CACHE_WAYS_MASK	(CACHE_WAYS - 1)
 
+#define DCACHE_LINES		BIT(DCACHE_BITS - CACHE_LINE_BITS)
+#define ICACHE_LINES		BIT(ICACHE_BITS - CACHE_LINE_BITS)
+
 /*
  * As the associativity increases, so does the number of bits per tag.
  * Conversely, n_bits(index) diminishes. Examples:
@@ -63,18 +63,18 @@
  * Tag and index do not overlap; if this was implemented in hardware,
  * this point would become important.
  */
-#define TAG_SHIFT(cache_bits)	(CACHE_LINE_BITS + (cache_bits) - CACHE_ASSOC)
-#define IDX_SHIFT		CACHE_LINE_BITS
+#define TAG_SHIFT(cache_bits)	((cache_bits) - CACHE_ASSOC)
+
 /* Lines Per Set (LPS) */
 #define DCACHE_LPS	(DCACHE_LINES >> CACHE_ASSOC)
 #define ICACHE_LPS	(ICACHE_LINES >> CACHE_ASSOC)
 
 #define __addr_to_tag(addr, cache_bits)	((addr) >> TAG_SHIFT(cache_bits))
-#define dcache_addr_to_tag(addr)	__addr_to_tag(addr, DCACHE_LINES_BITS)
-#define icache_addr_to_tag(addr)	__addr_to_tag(addr, ICACHE_LINES_BITS)
+#define dcache_addr_to_tag(addr)	__addr_to_tag(addr, DCACHE_BITS)
+#define icache_addr_to_tag(addr)	__addr_to_tag(addr, ICACHE_BITS)
 #define __addr_to_ofs(addr)	((addr) & CACHE_LINE_MASK)
 
-#define __cache_addr_to_idx(addr, lps) (((addr) >> IDX_SHIFT) & (lps - 1))
+#define __cache_addr_to_idx(addr, lps) (((addr) >> CACHE_LINE_BITS) & (lps - 1))
 #define dcache_addr_to_idx(addr)	__cache_addr_to_idx(addr, DCACHE_LPS)
 #define icache_addr_to_idx(addr)	__cache_addr_to_idx(addr, ICACHE_LPS)
 
