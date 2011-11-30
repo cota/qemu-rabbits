@@ -1735,6 +1735,7 @@ data_cache_access ()
     printf("drea: ");
     print_cacheline_desc(line);
 #endif
+    perf_event_inc(env, PERF_CACHE_REFERENCE);
     if (!dcache_hit(qi_dcache(crt_qemu_instance), line))
     {
         g_no_dcache_miss++;
@@ -1771,7 +1772,6 @@ data_cache_access ()
         #endif
     } else {
         perf_event_inc(env, PERF_DCACHE_RDACCESS);
-        perf_event_inc(env, PERF_CACHE_HIT);
     }
     #endif
 
@@ -1945,10 +1945,10 @@ write_access (unsigned long addr, int nb, unsigned long val)
     printf("dwri: ");
     print_cacheline_desc(line);
 #endif
+    perf_event_inc(_save_env, PERF_CACHE_REFERENCE);
     if (dcache_hit(qi_dcache(_save_crt_qemu_instance), line))
     {
         perf_event_inc(_save_env, PERF_DCACHE_WRACCESS);
-        perf_event_inc(_save_env, PERF_CACHE_HIT);
         switch (nb)
         {
         case 1:
@@ -2002,6 +2002,8 @@ instruction_cache_access (unsigned long addr)
     printf("irea: ");
     print_cacheline_desc(line);
 #endif
+
+    perf_event_inc(env, PERF_CACHE_REFERENCE);
     if (!icache_hit(qi_icache(crt_qemu_instance), line))
     {
         g_no_icache_miss++;

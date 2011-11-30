@@ -81,7 +81,7 @@ enum perf_types {
 	PERF_LSU_FULL_STALL	= 0x12,
 	PERF_WBUF_DRAINED	= 0x13,
 	/* here we add our own events */
-	PERF_CACHE_HIT		= 0x14,
+	PERF_CACHE_REFERENCE	= 0x14,
 	PERF_CACHE_MISS		= 0x15,
 	PERF_CPU_CYCLES		= 0xFF,
 };
