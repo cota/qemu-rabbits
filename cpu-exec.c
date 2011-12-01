@@ -2031,8 +2031,6 @@ instruction_cache_access (unsigned long addr)
         #else //cache late configuration
         s_crt_ns_misses += NS_ICACHE_MISS;
         #endif
-    } else {
-        perf_event_inc(env, PERF_CACHE_MISS);
     }
 }
 
