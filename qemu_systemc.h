@@ -44,6 +44,20 @@
 #define DCACHE_LINES		BIT(DCACHE_BITS - CACHE_LINE_BITS)
 #define ICACHE_LINES		BIT(ICACHE_BITS - CACHE_LINE_BITS)
 
+#define L2_ASSOC		2
+#define L2_WAYS			BIT(L2_ASSOC)
+#define L2_BANKS		1
+#define L2_SIZE_BITS		15
+#define L2_LPS			BIT(L2_SIZE_BITS - CACHE_LINE_BITS - L2_ASSOC)
+
+//#define L2M_MASK		0x3000
+#define L2M_MASK 0
+//#define L3_REMOTE
+
+#define OOB_NONE		0x0
+#define OOB_HIT			0x1
+#define OOB_MISS		0x2
+
 /*
  * As the associativity increases, so does the number of bits per tag.
  * Conversely, n_bits(index) diminishes. Examples:
@@ -72,5 +86,11 @@
 #define __cache_addr_to_idx(addr, lps) (((addr) >> CACHE_LINE_BITS) & (lps - 1))
 #define dcache_addr_to_idx(addr)	__cache_addr_to_idx(addr, DCACHE_LPS)
 #define icache_addr_to_idx(addr)	__cache_addr_to_idx(addr, ICACHE_LPS)
+
+#define L2_TAG_SHIFT	(L2_SIZE_BITS - L2_ASSOC)
+#define l2_addr_to_tag(addr)	((addr) >> L2_TAG_SHIFT)
+#define l2_addr_to_idx(addr)	(((addr) >> CACHE_LINE_BITS) & (L2_LPS - 1))
+#define l2_build_addr(tag, idx)                         \
+    (((tag) << L2_TAG_SHIFT) | ((idx) << CACHE_LINE_BITS))
 
 #endif

@@ -10,6 +10,11 @@ struct cacheline {
     uint8_t	data[CACHE_LINE_BYTES];
 };
 
+struct set_mutex {
+    int locked;
+    int cpu;
+};
+
 /*
  * Types of cache line entries
  */
@@ -220,6 +225,16 @@ icache_hit_no_update(struct cacheline_entry (*cache)[ICACHE_LPS][CACHE_WAYS], st
     return __cache_hit(ICACHE_LPS, CACHE_WAYS, cache, desc, QEMU_CACHE_INST, 0);
 }
 
+static inline int
+l2d_hit(struct cacheline_entry (*cache)[L2_LPS][L2_WAYS],
+        struct cacheline_desc *desc)
+{
+#ifdef DEBUG
+    printf("l2d ");
+#endif
+    return __cache_hit(L2_LPS, L2_WAYS, cache, desc, QEMU_CACHE_DATA, 1);
+}
+
 /*
  * This function is called right after a miss, ie desc->way must be -1.
  * We then find a suitable way, update the caller's descriptor with it, and
@@ -254,6 +269,12 @@ icache_refresh(struct cacheline_entry (*cache)[ICACHE_LPS][CACHE_WAYS], struct c
     __cache_refresh(ICACHE_LPS, CACHE_WAYS, cache, desc, QEMU_CACHE_INST);
 }
 
+static inline void
+l2d_refresh(struct cacheline_entry (*cache)[L2_LPS][L2_WAYS], struct cacheline_desc *desc)
+{
+    __cache_refresh(L2_LPS, L2_WAYS, cache, desc, QEMU_CACHE_DATA);
+}
+
 
 /*
  * Do not access cpu_{d,i}{cache,cache_data} directly; use the qi_* accessors
@@ -267,6 +288,9 @@ typedef struct
     struct cacheline_entry  (*cpu_icache)	[ICACHE_LPS][CACHE_WAYS];
     struct cacheline        (*cpu_dcache_data)	[DCACHE_LPS][CACHE_WAYS];
     struct cacheline        (*cpu_icache_data)	[ICACHE_LPS][CACHE_WAYS];
+    struct cacheline_entry  (*l2_cache)		[L2_LPS][L2_WAYS];
+    struct cacheline	    (*l2_cache_data)	[L2_LPS][L2_WAYS];
+    struct set_mutex        mem_lock;
     void                    **irqs_systemc;
 
     void                    *first_cpu;

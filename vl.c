@@ -352,10 +352,16 @@ static void init_cacheline_entry(struct cacheline_entry *entry, int age)
     entry->type = QEMU_CACHE_NONE;
 }
 
+static inline void set_mutex_init(struct set_mutex *mutex)
+{
+    mutex->locked = 0;
+    mutex->cpu = -1;
+}
+
 void
 qemu_init_caches (void)
 {
-    int way, idx, cpu;
+    int way, idx, cpu, bank;
 
     qi_dcache(crt_qemu_instance) = malloc (crt_qemu_instance->NOCPUs *
         DCACHE_LPS * CACHE_WAYS * sizeof (struct cacheline_entry));
@@ -384,6 +390,22 @@ qemu_init_caches (void)
 	for (idx = 0; idx < ICACHE_LPS; idx++)
 	    for (way = 0; way < CACHE_WAYS; way++)
 		init_cacheline(&qi_icache_data(crt_qemu_instance)[cpu][idx][way]);
+
+    crt_qemu_instance->l2_cache = malloc(L2_BANKS * L2_LPS * L2_WAYS *
+                                        sizeof(struct cacheline_entry));
+    for (bank = 0; bank < L2_BANKS; bank++)
+        for (idx = 0; idx < L2_LPS; idx++)
+            for (way = 0; way < L2_WAYS; way++)
+                init_cacheline_entry(&crt_qemu_instance->l2_cache[bank][idx][way], way);
+
+    crt_qemu_instance->l2_cache_data = malloc(L2_BANKS * L2_LPS * L2_WAYS *
+                                        sizeof(struct cacheline));
+    for (bank = 0; bank < L2_BANKS; bank++)
+        for (idx = 0; idx < L2_LPS; idx++)
+            for (way = 0; way < L2_WAYS; way++)
+                init_cacheline(&crt_qemu_instance->l2_cache_data[bank][idx][way]);
+
+    set_mutex_init(&crt_qemu_instance->mem_lock);
 }
 
 void

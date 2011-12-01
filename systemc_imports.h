@@ -11,10 +11,11 @@ typedef void            (*systemc_qemu_consume_instruction_cycles_fc_t) (
                             void *sc_obj, int ninst);
 typedef void            (*systemc_qemu_consume_ns_fc_t) (unsigned long ns);
 typedef unsigned long   (*systemc_qemu_read_memory_fc_t) (void *sc_obj,
-                            unsigned long address, unsigned long nbytes, int bIO);
+                            unsigned long address, unsigned long nbytes, int bIO,
+                            uint8_t *oob);
 typedef void            (*systemc_qemu_write_memory_fc_t) (void *sc_obj, 
                             unsigned long address, unsigned long data,
-                            unsigned char nbytes, int bIO);
+                            unsigned char nbytes, int bIO, uint8_t *oob);
 typedef unsigned long long  (*systemc_qemu_get_time_fc_t) (void);
 typedef unsigned long long  (*systemc_qemu_get_no_cycles_fc_t) (void *sc_obj);
 typedef unsigned char   *(*systemc_get_mem_addr_fc_t) (void *sc_obj,
