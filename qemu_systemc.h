@@ -24,13 +24,8 @@
 
 #define MEM_LIMIT           0x8000000
 
-#ifdef IMPLEMENT_COMBINED_CACHE
-#define DCACHE_BITS	14
-#define ICACHE_BITS	DCACHE_BITS
-#else
 #define DCACHE_BITS	13
 #define ICACHE_BITS	13
-#endif /* IMPLEMENT_COMBINED_CACHE */
 
 #define CACHE_BITS_TO_MASK(bits)	(BIT(bits) - 1)
 

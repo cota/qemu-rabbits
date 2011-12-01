@@ -12,7 +12,6 @@ struct cacheline {
 
 /*
  * Types of cache line entries
- * Note that these are ignored if !COMBINED_CACHES, see entry_match() below.
  */
 #define QEMU_CACHE_NONE	0
 #define QEMU_CACHE_DATA	1
@@ -53,19 +52,11 @@ static inline void print_cacheline(const struct cacheline *line)
     printf(")\n");
 }
 
-#ifdef IMPLEMENT_COMBINED_CACHE
 static inline int
 entry_match(const struct cacheline_entry *entry, unsigned long tag, int type)
 {
     return entry->tag == tag && entry->type == type;
 }
-#else /* !COMBINED */
-static inline int
-entry_match(const struct cacheline_entry *entry, unsigned long tag, int type)
-{
-    return entry->tag == tag;
-}
-#endif
 
 /*
  * Cache Read/Write rationale
@@ -272,15 +263,10 @@ typedef struct
 {
     int                     id;
     int                     NOCPUs;
-#ifdef IMPLEMENT_COMBINED_CACHE
-    struct cacheline_entry  (*cpu_cache)	[DCACHE_LPS][CACHE_WAYS];
-    struct cacheline        (*cpu_cache_data)	[DCACHE_LPS][CACHE_WAYS];
-#else
     struct cacheline_entry  (*cpu_dcache)	[DCACHE_LPS][CACHE_WAYS];
     struct cacheline_entry  (*cpu_icache)	[ICACHE_LPS][CACHE_WAYS];
     struct cacheline        (*cpu_dcache_data)	[DCACHE_LPS][CACHE_WAYS];
     struct cacheline        (*cpu_icache_data)	[ICACHE_LPS][CACHE_WAYS];
-#endif /* IMPLEMENT_COMBINED_CACHE */
     void                    **irqs_systemc;
 
     void                    *first_cpu;
@@ -316,18 +302,10 @@ typedef struct
     unsigned long           log_cnt_data;
 } qemu_instance;
 
-#ifdef IMPLEMENT_COMBINED_CACHE
-#define qi_dcache(qi)	((qi)->cpu_cache)
-#define qi_dcache_data(qi)	((qi)->cpu_cache_data)
-#define qi_icache(qi)	((qi)->cpu_cache)
-#define qi_icache_data(qi)	((qi)->cpu_cache_data)
-#else
 #define qi_dcache(qi)	((qi)->cpu_dcache)
 #define qi_dcache_data(qi)	((qi)->cpu_dcache_data)
 #define qi_icache(qi)	((qi)->cpu_icache)
 #define qi_icache_data(qi)	((qi)->cpu_icache_data)
-#endif /* IMPLEMENT_COMBINED_CACHE */
-
 
 extern qemu_instance        *crt_qemu_instance;
 

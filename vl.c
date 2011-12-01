@@ -370,7 +370,7 @@ qemu_init_caches (void)
 	for (idx = 0; idx < DCACHE_LPS; idx++)
 	    for (way = 0; way < CACHE_WAYS; way++)
 		init_cacheline(&qi_dcache_data(crt_qemu_instance)[cpu][idx][way]);
-#ifndef IMPLEMENT_COMBINED_CACHE
+
     qi_icache(crt_qemu_instance) = malloc (crt_qemu_instance->NOCPUs *
         ICACHE_LPS * CACHE_WAYS * sizeof (struct cacheline_entry));
     for (cpu = 0; cpu < crt_qemu_instance->NOCPUs; cpu++)
@@ -384,7 +384,6 @@ qemu_init_caches (void)
 	for (idx = 0; idx < ICACHE_LPS; idx++)
 	    for (way = 0; way < CACHE_WAYS; way++)
 		init_cacheline(&qi_icache_data(crt_qemu_instance)[cpu][idx][way]);
-#endif /* IMPLEMENT_COMBINED_CACHE */
 }
 
 void
