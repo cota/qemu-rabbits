@@ -83,6 +83,7 @@ enum perf_types {
 	/* here we add our own events */
 	PERF_CACHE_REFERENCE	= 0x14,
 	PERF_CACHE_MISS		= 0x15,
+        PERF_ICACHE_REFERENCE	= 0x20,
 	PERF_CPU_CYCLES		= 0xFF,
 };
 

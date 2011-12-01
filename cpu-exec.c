@@ -2004,6 +2004,7 @@ instruction_cache_access (unsigned long addr)
 #endif
 
     perf_event_inc(env, PERF_CACHE_REFERENCE);
+    perf_event_inc(env, PERF_ICACHE_REFERENCE);
     if (!icache_hit(qi_icache(crt_qemu_instance), line))
     {
         g_no_icache_miss++;
