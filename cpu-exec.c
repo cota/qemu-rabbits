@@ -2065,19 +2065,17 @@ write_access (unsigned long addr, int nb, unsigned long val)
     {
         #ifdef IMPLEMENT_FULL_CACHES
         unsigned long ofs = __addr_to_ofs(addr);
+        void *dest = &qi_dcache_data(crt_qemu_instance)[line->grp][line->idx][line->way].data[ofs];
         switch (nb)
         {
         case 1:
-            *((unsigned char *)  &qi_dcache_data(crt_qemu_instance)[line->grp][line->idx][line->way].data[ofs]) =
-                (unsigned char) (val & 0x000000FF);
+            *((unsigned char *)dest) = (unsigned char) (val & 0xff);
         break;
         case 2:
-            *((unsigned short *) &qi_dcache_data(crt_qemu_instance)[line->grp][line->idx][line->way].data[ofs]) =
-                (unsigned short) (val & 0x0000FFFF);
+            *((unsigned short *)dest) = (unsigned short) (val & 0xffff);
         break;
         case 4:
-            *((unsigned long *)  &qi_dcache_data(crt_qemu_instance)[line->grp][line->idx][line->way].data[ofs]) =
-                (unsigned long) (val & 0xFFFFFFFF);
+            *((unsigned long *)dest) = (unsigned long)(val & 0xffffffff);
         break;
         default:
             printf ("QEMU, function %s, invalid nb %d\n", __FUNCTION__, nb);
