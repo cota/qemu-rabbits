@@ -7,7 +7,7 @@
 #define GDB_ENABLED
 
 /* cache associativity: defined in log2 (i.e. 0 for no associativity) */
-#define CACHE_ASSOC	0
+#define CACHE_ASSOC	2
 
 //assure a consistent configuration
 #if defined(IMPLEMENT_FULL_CACHES) && defined(ONE_MEM_MODULE)
