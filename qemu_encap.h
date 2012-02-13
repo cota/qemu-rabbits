@@ -150,23 +150,28 @@ __lru_turn_in(int n, int n_ways, struct cacheline_entry (*cache)[n][n_ways],
 }
 
 static inline void
-dcache_invalidate(struct cacheline_entry (*cache)[DCACHE_LPS][CACHE_WAYS], struct cacheline_desc *desc)
+__cache_invalidate(int n, int n_ways, struct cacheline_entry (*cache)[n][n_ways],
+                   struct cacheline_desc *desc)
 {
 #ifdef DEBUG
     printf("inv : ");
     print_cacheline_desc(desc);
 #endif
-    __lru_turn_in(DCACHE_LPS, CACHE_WAYS, cache, desc);
+    __lru_turn_in(n, n_ways, cache, desc);
     cache[desc->grp][desc->idx][desc->way].tag = ~0;
     cache[desc->grp][desc->idx][desc->way].type = QEMU_CACHE_NONE;
 }
 
 static inline void
+dcache_invalidate(struct cacheline_entry (*cache)[DCACHE_LPS][CACHE_WAYS], struct cacheline_desc *desc)
+{
+    return __cache_invalidate(DCACHE_LPS, CACHE_WAYS, cache, desc);
+}
+
+static inline void
 icache_invalidate(struct cacheline_entry (*cache)[ICACHE_LPS][CACHE_WAYS], struct cacheline_desc *desc)
 {
-    __lru_turn_in(ICACHE_LPS, CACHE_WAYS, cache, desc);
-    cache[desc->grp][desc->idx][desc->way].tag = ~0;
-    cache[desc->grp][desc->idx][desc->way].type = QEMU_CACHE_NONE;
+    return __cache_invalidate(ICACHE_LPS, CACHE_WAYS, cache, desc);
 }
 
 /*
