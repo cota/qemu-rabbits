@@ -2224,6 +2224,8 @@ qemu_invalidate_address (qemu_instance *instance, unsigned long addr, int src_id
     {
 	dline->grp = i;
 	iline->grp = i;
+        dline->way = -1;
+        iline->way = -1;
         if (i != src_idx && dcache_hit_no_update(qi_dcache(instance), dline))
 	    dcache_invalidate(qi_dcache(instance), dline);
 
