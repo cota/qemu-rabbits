@@ -30,6 +30,7 @@ struct systemc_import_t
     systemc_qemu_consume_ns_fc_t                    systemc_qemu_consume_ns;
     systemc_qemu_read_memory_fc_t                   systemc_qemu_read_memory;
     systemc_qemu_write_memory_fc_t                  systemc_qemu_write_memory;
+    systemc_qemu_write_memory_fc_t                  systemc_qemu_write_memory_nosleep;
     systemc_qemu_get_time_fc_t                      systemc_qemu_get_time;
     systemc_qemu_get_no_cycles_fc_t                 systemc_qemu_get_no_cycles;
     systemc_get_mem_addr_fc_t                       systemc_get_mem_addr;
