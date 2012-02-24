@@ -26,6 +26,7 @@ struct cacheline_entry {
     unsigned long	tag;
     int8_t		age;
     int8_t		type;
+    int8_t		dirty;
 };
 
 /*
@@ -241,20 +242,20 @@ l2d_hit(struct cacheline_entry (*cache)[L2_LPS][L2_WAYS],
 }
 
 /*
- * This function is called right after a miss, ie desc->way must be -1.
  * We then find a suitable way, update the caller's descriptor with it, and
  * update our corresponding cache entry.
  */
 static inline void
 __cache_refresh(int n, int n_ways, struct cacheline_entry (*cache)[n][n_ways],
-                struct cacheline_desc *desc, int type)
+                struct cacheline_desc *desc, int type, int valid)
 {
     struct cacheline_entry *entry;
 
-    if (desc->way != -1)
-	printf("warning: %s: invalid way value: (%d) != -1\n", __func__, desc->way);
-
-    desc->way = __lru_find(n, n_ways, cache, desc);
+    if (!valid) {
+        if (desc->way != -1)
+            printf("warning: %s: invalid way value: (%d) != -1\n", __func__, desc->way);
+        desc->way = __lru_find(n, n_ways, cache, desc);
+    }
 
     entry = &cache[desc->grp][desc->idx][desc->way];
     entry->tag = desc->tag;
@@ -265,21 +266,35 @@ __cache_refresh(int n, int n_ways, struct cacheline_entry (*cache)[n][n_ways],
 static inline void
 dcache_refresh(struct cacheline_entry (*cache)[DCACHE_LPS][CACHE_WAYS], struct cacheline_desc *desc)
 {
-    __cache_refresh(DCACHE_LPS, CACHE_WAYS, cache, desc, QEMU_CACHE_DATA);
+    __cache_refresh(DCACHE_LPS, CACHE_WAYS, cache, desc, QEMU_CACHE_DATA, 0);
 }
 
 static inline void
 icache_refresh(struct cacheline_entry (*cache)[ICACHE_LPS][CACHE_WAYS], struct cacheline_desc *desc)
 {
-    __cache_refresh(ICACHE_LPS, CACHE_WAYS, cache, desc, QEMU_CACHE_INST);
+    __cache_refresh(ICACHE_LPS, CACHE_WAYS, cache, desc, QEMU_CACHE_INST, 0);
 }
 
 static inline void
 l2d_refresh(struct cacheline_entry (*cache)[L2_LPS][L2_WAYS], struct cacheline_desc *desc)
 {
-    __cache_refresh(L2_LPS, L2_WAYS, cache, desc, QEMU_CACHE_DATA);
+    __cache_refresh(L2_LPS, L2_WAYS, cache, desc, QEMU_CACHE_DATA, 0);
 }
 
+static inline void
+l2d_refresh_way(struct cacheline_entry (*cache)[L2_LPS][L2_WAYS], struct cacheline_desc *desc)
+{
+    __cache_refresh(L2_LPS, L2_WAYS, cache, desc, QEMU_CACHE_DATA, 1);
+}
+
+static inline void __l2_set_dirty(struct cacheline_entry (*cache)[L2_LPS][L2_WAYS],
+                                  const struct cacheline_desc *desc, int val)
+{
+    struct cacheline_entry *entry;
+
+    entry = &cache[desc->grp][desc->idx][desc->way];
+    entry->dirty = val;
+}
 
 /*
  * Do not access cpu_{d,i}{cache,cache_data} directly; use the qi_* accessors

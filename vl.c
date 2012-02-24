@@ -350,6 +350,7 @@ static void init_cacheline_entry(struct cacheline_entry *entry, int age)
     entry->tag = ~0;
     entry->age = age;
     entry->type = QEMU_CACHE_NONE;
+    entry->dirty = 0;
 }
 
 static inline void set_mutex_init(struct set_mutex *mutex)

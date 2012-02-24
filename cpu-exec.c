@@ -1741,6 +1741,55 @@ static inline void mem_unlock(void)
     lock->cpu = -1;
 }
 
+static inline void
+__evict_line(int n, int n_ways, struct cacheline_entry (*cache)[n][n_ways],
+             struct cacheline (*cache_data)[n][n_ways],
+             struct cacheline_desc *desc, uint8_t *oob)
+{
+    struct cacheline_entry *lru_entry;
+    uint8_t *data;
+
+    desc->way = __lru_find(n, n_ways, cache, desc);
+    lru_entry = &cache[desc->grp][desc->idx][desc->way];
+
+    #ifdef DEBUG
+    printf("%s: grp %d way %2d tag 0x%08lx idx 0x%x\n",
+           __func__, desc->grp, desc->way, lru_entry->tag, desc->idx);
+    #endif
+
+    data = &cache_data[desc->grp][desc->idx][desc->way].data[0];
+
+    if (lru_entry->dirty) {
+        unsigned long phys = l2_build_addr(lru_entry->tag, desc->idx);
+        unsigned long mem_addr;
+
+        #ifdef DEBUG
+        printf("eviction: grp %d way %2d tag 0x%08lx idx 0x%x phys %08lx\n",
+               desc->grp, desc->way, lru_entry->tag, desc->idx, phys);
+        #endif
+
+        SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
+        /*
+         * hack: since we cannot write to memory a whole line via a proper
+         * interface, we memcpy it.
+         */
+        mem_addr = _save_crt_qemu_instance->systemc.systemc_qemu_read_memory
+           (_save_cpu_single_env->qemu.sc_obj, phys, CACHE_LINE_BYTES, 0, oob);
+        RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
+        memcpy((void *)mem_addr, data, CACHE_LINE_BYTES);
+
+        lru_entry->dirty = 0;
+    }
+}
+
+static inline void
+l2d_evict_line(struct cacheline_entry (*cache)[L2_LPS][L2_WAYS],
+               struct cacheline (*cache_data)[L2_LPS][L2_WAYS],
+               struct cacheline_desc *desc, uint8_t *oob)
+{
+    return __evict_line(L2_LPS, L2_WAYS, cache, cache_data, desc, oob);
+}
+
 #else
 static inline void mem_lock(void)
 { }
@@ -1774,6 +1823,53 @@ static inline void perf_l2(unsigned long addr, int perf_miss, int oob)
     }
 }
 #endif
+
+static void
+__l2_fetch_line(struct cacheline_desc *l2, unsigned long addr, int perf_miss)
+{
+    #ifdef DEBUG
+    printf("fetch ");
+    print_cacheline_desc(l2);
+    #endif
+
+    #ifdef IMPLEMENT_FULL_CACHES
+    uint8_t oob = 0;
+
+    l2d_evict_line(crt_qemu_instance->l2_cache,
+                   crt_qemu_instance->l2_cache_data, l2, &oob);
+    l2d_refresh_way(crt_qemu_instance->l2_cache, l2);
+
+    /* TODO: count a write back instead of a miss */
+    #ifdef L3_REMOTE
+    if (oob == OOB_MISS)
+        perf_event_inc(env, PERF_CACHE_MISS);
+    #endif
+
+    #endif /* FULL */
+
+    g_no_dcache_miss++;
+
+    #ifdef LOG_INFO_FOR_DEBUG
+    log_data_cache (addr);
+    #endif
+    #ifdef IMPLEMENT_LATE_CACHES
+    s_crt_ns_misses += NS_DCACHE_MISS;
+    #endif
+
+    #ifdef IMPLEMENT_FULL_CACHES
+    void *addr_in_mem_dev;
+
+    SAVE_ENV_BEFORE_CONSUME_SYSTEMC();
+    addr_in_mem_dev = (void *)_save_crt_qemu_instance->systemc.systemc_qemu_read_memory
+        (_save_cpu_single_env->qemu.sc_obj, addr & ~CACHE_LINE_MASK,
+         1 << CACHE_LINE_BITS, 0, &oob);
+    memcpy(&_save_crt_qemu_instance->l2_cache_data[0][l2->idx][l2->way],
+           addr_in_mem_dev, CACHE_LINE_BYTES);
+    RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
+
+    perf_l2(addr, perf_miss, oob);
+    #endif /* FULL */
+}
 
 inline void *
 data_cache_access ()
@@ -1849,29 +1945,8 @@ data_cache_access ()
             RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
             #endif /* FULL */
 
-            if (!l2d_hit(crt_qemu_instance->l2_cache, l2)) {
-                l2d_refresh(crt_qemu_instance->l2_cache, l2);
-                g_no_dcache_miss++;
-
-                #ifdef LOG_INFO_FOR_DEBUG
-                log_data_cache (addr);
-                #endif
-                #ifdef IMPLEMENT_LATE_CACHES
-                s_crt_ns_misses += NS_DCACHE_MISS;
-                #endif
-
-                #ifdef IMPLEMENT_FULL_CACHES
-                SAVE_ENV_BEFORE_CONSUME_SYSTEMC();
-                addr_in_mem_dev = _save_crt_qemu_instance->systemc.systemc_qemu_read_memory
-                    (_save_cpu_single_env->qemu.sc_obj, addr & ~CACHE_LINE_MASK,
-                     1 << CACHE_LINE_BITS, 0, &oob);
-                memcpy(&_save_crt_qemu_instance->l2_cache_data[0][l2->idx][l2->way],
-                        (void *)addr_in_mem_dev, CACHE_LINE_BYTES);
-                RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
-
-                perf_l2(addr, PERF_L2_RDMISS, oob);
-                #endif /* FULL */
-            }
+            if (!l2d_hit(crt_qemu_instance->l2_cache, l2))
+                __l2_fetch_line(l2, addr, PERF_L2_RDMISS);
 
             #ifdef IMPLEMENT_FULL_CACHES
             l2_addr = &crt_qemu_instance->l2_cache_data[0][l2->idx][l2->way];
@@ -2103,41 +2178,61 @@ write_access (unsigned long addr, int nb, unsigned long val)
         RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
 
     #endif /* FULL */
+        if (!l2d_hit(crt_qemu_instance->l2_cache, l2))
+            __l2_fetch_line(l2, addr, PERF_L2_WRMISS);
+        __l2_set_dirty(crt_qemu_instance->l2_cache, l2, 1);
 
-        if (l2d_hit(crt_qemu_instance->l2_cache, l2)) {
-            #ifdef IMPLEMENT_FULL_CACHES
-            unsigned long ofs = __addr_to_ofs(addr);
-            void *dest = &crt_qemu_instance->l2_cache_data[0][l2->idx][l2->way].data[ofs];
-            switch (nb) {
-            case 1:
-                *((unsigned char *)dest) = (unsigned char)(val & 0xff);
-                break;
-            case 2:
-                *((unsigned short *)dest) = (unsigned short)(val & 0xffff);
-                break;
-            case 4:
-                *((unsigned long *)dest) = (unsigned long)(val & 0xffffffff);
-                break;
-            default:
-                printf ("QEMU, function %s, invalid nb %d\n", __FUNCTION__, nb);
-                exit(1);
-            }
-            #endif /* FULL */
+        #ifdef IMPLEMENT_FULL_CACHES
+        unsigned long ofs = __addr_to_ofs(addr);
+        void *dest = &crt_qemu_instance->l2_cache_data[0][l2->idx][l2->way].data[ofs];
+        switch (nb) {
+        case 1:
+            *((unsigned char *)dest) = (unsigned char)(val & 0xff);
+            break;
+        case 2:
+            *((unsigned short *)dest) = (unsigned short)(val & 0xffff);
+            break;
+        case 4:
+            *((unsigned long *)dest) = (unsigned long)(val & 0xffffffff);
+            break;
+        default:
+            printf ("QEMU, function %s, invalid nb %d\n", __FUNCTION__, nb);
+            exit(1);
         }
+        #endif /* FULL */
     #ifdef IMPLEMENT_FULL_CACHES
-    } /* if !L2M */
+    } else { /* if !L2M */
+        uint8_t oob = 0;
+        SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
+        _save_crt_qemu_instance->systemc.systemc_qemu_write_memory
+            (_save_cpu_single_env->qemu.sc_obj, addr, val, nb, 0, &oob);
+        RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
+    }
     #endif
 
 #ifdef IMPLEMENT_FULL_CACHES
     uint8_t oob = 0;
-    SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
-    _save_crt_qemu_instance->systemc.systemc_qemu_write_memory
-        (_save_cpu_single_env->qemu.sc_obj, addr, val, nb, 0, &oob);
-    RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
+    void *mem_addr = crt_qemu_instance->systemc.systemc_get_mem_addr
+        (cpu_single_env->qemu.sc_obj, addr);
+        switch (nb) {
+        case 1:
+            *((unsigned char *)mem_addr) = (unsigned char)(val & 0xff);
+            break;
+        case 2:
+            *((unsigned short *)mem_addr) = (unsigned short)(val & 0xffff);
+            break;
+        case 4:
+            *((unsigned long *)mem_addr) = (unsigned long)(val & 0xffffffff);
+            break;
+        default:
+            printf ("QEMU, function %s, invalid nb %d\n", __FUNCTION__, nb);
+            exit(1);
+        }
 
-    /* enforce L2 wr miss due to write-through */
-    perf_l2(addr, PERF_L2_WRMISS, oob);
-
+        SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
+        _save_crt_qemu_instance->systemc.systemc_qemu_write_memory_nosleep
+            (_save_cpu_single_env->qemu.sc_obj, addr, val, nb, 0, &oob);
+        RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
 #endif
     mem_unlock();
 
