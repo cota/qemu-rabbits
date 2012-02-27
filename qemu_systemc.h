@@ -50,10 +50,6 @@
 #define L2_SIZE_BITS		15
 #define L2_LPS			BIT(L2_SIZE_BITS - CACHE_LINE_BITS - L2_ASSOC)
 
-//#define L2M_MASK		0x3000
-#define L2M_MASK 0
-//#define L3_REMOTE
-
 #define OOB_NONE		0x0
 #define OOB_HIT			0x1
 #define OOB_MISS		0x2
