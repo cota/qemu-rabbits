@@ -2197,12 +2197,14 @@ write_access (unsigned long addr, int nb, unsigned long val)
         }
         #endif /* FULL */
     #ifdef IMPLEMENT_FULL_CACHES
-    } else { /* if !L2M */
+    } else { /* L2M */
         uint8_t oob = 0;
         SAVE_ENV_BEFORE_CONSUME_SYSTEMC ();
         _save_crt_qemu_instance->systemc.systemc_qemu_write_memory
             (_save_cpu_single_env->qemu.sc_obj, addr, val, nb, 0, &oob);
         RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
+
+	perf_l2(addr, PERF_L2_WRMISS, oob);
     }
     #endif
 
