@@ -1838,12 +1838,7 @@ __l2_fetch_line(struct cacheline_desc *l2, unsigned long addr, int perf_miss)
     l2d_evict_line(crt_qemu_instance->l2_cache,
                    crt_qemu_instance->l2_cache_data, l2, &oob);
     l2d_refresh_way(crt_qemu_instance->l2_cache, l2);
-
-    /* TODO: count a write back instead of a miss */
-    #ifdef L3_REMOTE
-    if (oob == OOB_MISS)
-        perf_event_inc(env, PERF_CACHE_MISS);
-    #endif
+    /* do not count the eviction as a miss, even if it causes a mem access */
 
     #endif /* FULL */
 
