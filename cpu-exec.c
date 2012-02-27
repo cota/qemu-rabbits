@@ -1824,6 +1824,7 @@ static inline void perf_l2(unsigned long addr, int perf_miss, int oob)
 }
 #endif
 
+/* NOTE: This function can only be called from !L2M context */
 static void
 __l2_fetch_line(struct cacheline_desc *l2, unsigned long addr, int perf_miss)
 {
