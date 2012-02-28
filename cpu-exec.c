@@ -2279,10 +2279,14 @@ instruction_cache_access (unsigned long addr)
                 _save_cpu_single_env->qemu.sc_obj, ninstr);
         }
 
+	/*
+	 * read addr 0; it won't be cached by l2m/l3, we only care
+	 * about the round-trip latency to memory
+	 */
         unsigned long junk;
         junk = _save_crt_qemu_instance->systemc.systemc_qemu_read_memory (
             _save_cpu_single_env->qemu.sc_obj,
-            addr & ~CACHE_LINE_MASK, 1 << CACHE_LINE_BITS, 0, NULL);
+            0, 1 << CACHE_LINE_BITS, 0, NULL);
 
         RESTORE_ENV_AFTER_CONSUME_SYSTEMC ();
         #else //cache late configuration
