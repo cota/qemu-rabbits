@@ -47,7 +47,7 @@
 #define L2_ASSOC		2
 #define L2_WAYS			BIT(L2_ASSOC)
 #define L2_BANKS		1
-#define L2_SIZE_BITS		15
+#define L2_SIZE_BITS		17
 #define L2_LPS			BIT(L2_SIZE_BITS - CACHE_LINE_BITS - L2_ASSOC)
 
 #define OOB_NONE		0x0

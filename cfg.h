@@ -8,7 +8,7 @@
 
 #define NO_L2MS_BITS 		2
 #define NO_L2MS			(BIT(NO_L2MS_BITS) - 1)
-#define L2M_THRESHOLD_BITS	13
+#define L2M_THRESHOLD_BITS	15
 //#define L2M_MASK		(NO_L2MS << L2M_THRESHOLD_BITS)
 #define L2M_MASK 0
 //#define L3_REMOTE
